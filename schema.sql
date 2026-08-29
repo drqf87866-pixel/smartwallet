@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
   name          TEXT NOT NULL,
   email         TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  is_admin      INTEGER NOT NULL DEFAULT 0 -- Haushaltsgründer
+  is_admin      INTEGER NOT NULL DEFAULT 0, -- Haushaltsgründer
+  monthly_contribution REAL NOT NULL DEFAULT 0 -- eigener Monatsbeitrag des Mitglieds
 );
 
 CREATE TABLE IF NOT EXISTS transactions (

@@ -7,6 +7,7 @@ import { COOKIE_NAME } from '../lib/auth';
 import { LoginView } from '../views/login';
 import { RegisterView } from '../views/register';
 import { DashboardView, type DebtRow, type DashboardTx } from '../views/dashboard';
+import { SettingsView } from '../views/settings';
 
 const pages = new Hono<Env>();
 
@@ -67,6 +68,38 @@ pages.get('/register', async (c) => {
   return c.html(<RegisterView initialCode={code.replace(/[^A-Za-z0-9]/g, '').toUpperCase()} />);
 });
 
+pages.get('/settings', async (c) => {
+  const auth = await getAuth(c);
+  if (!auth) return c.redirect('/login');
+
+  const hid = auth.hid;
+  const household = await c.env.DB
+    .prepare('SELECT name, invite_code FROM households WHERE id = ?1')
+    .bind(hid)
+    .first<{ name: string; invite_code: string }>();
+  const { results: members } = await c.env.DB
+    .prepare('SELECT id, name, monthly_contribution FROM users WHERE household_id = ?1 ORDER BY id')
+    .bind(hid)
+    .all<{ id: number; name: string; monthly_contribution: number }>();
+  const { results: settingRows } = await c.env.DB
+    .prepare("SELECT value FROM settings WHERE household_id = ?1 AND key = 'joint_start_balance'")
+    .bind(hid)
+    .all<{ value: string }>();
+  const me = members.find((m) => m.id === auth.uid);
+
+  return c.html(
+    <SettingsView
+      userName={auth.name}
+      userEmail={auth.email}
+      householdName={household?.name ?? 'Haushalt'}
+      inviteCode={household?.invite_code ?? ''}
+      members={members}
+      myContribution={me?.monthly_contribution ?? 0}
+      startBalance={toNumber(settingRows[0]?.value)}
+    />,
+  );
+});
+
 pages.get('/dashboard', async (c) => {
   const auth = await getAuth(c);
   if (!auth) return c.redirect('/login');
@@ -88,7 +121,7 @@ pages.get('/dashboard', async (c) => {
     .all<{ id: number; name: string }>();
   const memberCount = members.length;
 
-  // Einstellungen (pro Haushalt)
+  // Einstellungen (pro Haushalt) + eigener Monatsbeitrag
   const { results: settingRows } = await c.env.DB
     .prepare('SELECT key, value FROM settings WHERE household_id = ?1')
     .bind(hid)
@@ -96,8 +129,13 @@ pages.get('/dashboard', async (c) => {
   const settingsMap = new Map(settingRows.map((row) => [row.key, row.value]));
   const settings = {
     start: toNumber(settingsMap.get('joint_start_balance')),
-    contribution: toNumber(settingsMap.get('joint_contribution')),
   };
+  const myContribution =
+    (
+      await c.env.DB.prepare('SELECT monthly_contribution FROM users WHERE id = ?1')
+        .bind(uid)
+        .first<{ monthly_contribution: number }>()
+    )?.monthly_contribution ?? 0;
 
   // Karte 1: privater Saldo – private Einnahmen/Ausgaben, meine Beiträge, Ausgleiche
   const privateBalance =
@@ -203,7 +241,7 @@ pages.get('/dashboard', async (c) => {
 
   // Schnellbutton: eigener Beitrag für den aktuellen Monat schon gebucht?
   const contributionBooked =
-    settings.contribution > 0 &&
+    myContribution > 0 &&
     (
       await c.env.DB.prepare(
         "SELECT COUNT(*) AS n FROM transactions WHERE type = 'transfer' AND category = 'Beitrag' AND user_id = ?1 AND date LIKE ?2",
@@ -234,7 +272,6 @@ pages.get('/dashboard', async (c) => {
     <DashboardView
       userName={auth.name}
       householdName={household?.name ?? 'Haushalt'}
-      inviteCode={household?.invite_code ?? ''}
       members={members}
       monthLabel={monthLabel}
       prevMonth={shiftMonth(month, -1)}
@@ -244,6 +281,7 @@ pages.get('/dashboard', async (c) => {
       sharedMonth={sharedMonth}
       debts={debts}
       settings={settings}
+      myContribution={myContribution}
       contributionBooked={contributionBooked}
       transactions={transactions}
       today={new Date().toISOString().slice(0, 10)}

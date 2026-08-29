@@ -26,7 +26,6 @@ type MemberInfo = { id: number; name: string };
 type DashboardProps = {
   userName: string;
   householdName: string;
-  inviteCode: string;
   members: MemberInfo[];
   monthLabel: string;
   prevMonth: string;
@@ -35,7 +34,8 @@ type DashboardProps = {
   jointPot: { saldo: number; start: number; transfers: number };
   sharedMonth: { total: number; advanced: number };
   debts: DebtRow[];
-  settings: { start: number; contribution: number };
+  settings: { start: number };
+  myContribution: number;
   contributionBooked: boolean;
   transactions: DashboardTx[];
   today: string;
@@ -100,11 +100,6 @@ async function postJson(url, body, method) {
   return data;
 }
 
-document.getElementById('logout-btn').addEventListener('click', async function () {
-  await fetch('/api/logout', { method: 'POST' });
-  window.location.href = '/login';
-});
-
 // Magic-Input: Konto-Pills (Radio-Verhalten)
 document.querySelectorAll('[data-paid-from]').forEach(function (pill) {
   pill.addEventListener('click', function () {
@@ -134,15 +129,6 @@ document.getElementById('magic-form').addEventListener('submit', async function 
     btn.disabled = false;
     btn.textContent = '✨ Hinzufügen';
   }
-});
-
-document.getElementById('copy-invite').addEventListener('click', function () {
-  var code = document.getElementById('invite-code').textContent.trim();
-  navigator.clipboard.writeText(code).then(function () {
-    showToast('Einladungscode kopiert: ' + code, 'ok');
-  }, function () {
-    showToast('Code: ' + code, 'info');
-  });
 });
 
 var contributionBtn = document.getElementById('contribution-btn');
@@ -319,24 +305,12 @@ document.querySelectorAll('[data-delete]').forEach(function (btn) {
   });
 });
 
-document.getElementById('settings-form').addEventListener('submit', async function (e) {
-  e.preventDefault();
-  try {
-    await postJson('/api/settings', {
-      joint_start_balance: parseFloat(document.getElementById('set-start').value.replace(',', '.')) || 0,
-      joint_contribution: parseFloat(document.getElementById('set-contribution').value.replace(',', '.')) || 0,
-    }, 'PUT');
-    window.location.reload();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-});
 `;
+
 
 export const DashboardView: FC<DashboardProps> = ({
   userName,
   householdName,
-  inviteCode,
   members,
   monthLabel,
   prevMonth,
@@ -346,6 +320,7 @@ export const DashboardView: FC<DashboardProps> = ({
   sharedMonth,
   debts,
   settings,
+  myContribution,
   contributionBooked,
   transactions,
   today,
@@ -375,12 +350,16 @@ export const DashboardView: FC<DashboardProps> = ({
               Hallo {userName}, hier ist der Überblick für „{householdName}“.
             </p>
           </div>
-          <button
-            id="logout-btn"
-            class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+          <a
+            href="/settings"
+            title="Einstellungen"
+            class="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
           >
-            Abmelden
-          </button>
+            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+              {userName.charAt(0).toUpperCase()}
+            </span>
+            <span class="text-sm font-medium text-slate-700">{userName}</span>
+          </a>
         </header>
 
         <section class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -414,7 +393,7 @@ export const DashboardView: FC<DashboardProps> = ({
             <h2 class="text-sm font-medium text-slate-500">Wer schuldet wem?</h2>
             {members.length < 2 ? (
               <p class="mt-2 text-xs text-slate-500">
-                Du bist derzeit solo im Haushalt. Teile den Einladungscode (unter ⚙ Einstellungen),
+                Du bist derzeit solo im Haushalt. Teile den Einladungscode (oben rechts unter deinem Namen → Einstellungen),
                 um die gemeinsame Abrechnung zu starten.
               </p>
             ) : debts.length === 0 ? (
@@ -488,13 +467,13 @@ export const DashboardView: FC<DashboardProps> = ({
         </section>
 
         <section class="mb-4 flex flex-wrap items-center gap-3">
-          {settings.contribution > 0 && !contributionBooked ? (
+          {myContribution > 0 && !contributionBooked ? (
             <button
               id="contribution-btn"
               type="button"
               class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
             >
-              💰 Beitrag buchen ({fmt(settings.contribution)})
+              💰 Beitrag buchen ({fmt(myContribution)})
             </button>
           ) : null}
           <button
@@ -711,55 +690,6 @@ export const DashboardView: FC<DashboardProps> = ({
           )}
         </section>
 
-        <details class="mt-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-          <summary class="cursor-pointer select-none text-sm font-medium text-slate-500">
-            ⚙ Einstellungen
-          </summary>
-          <div class="mt-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
-            <div>
-              <h2 class="text-sm font-medium text-slate-500">👥 Haushalt „{householdName}“</h2>
-              <p class="mt-1 text-xs text-slate-400">
-                {members.length} {members.length === 1 ? 'Mitglied' : 'Mitglieder'}:{' '}
-                {members.map((m) => (m.name === userName ? `${m.name} (du)` : m.name)).join(' · ')}
-              </p>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-slate-400">Einladungscode:</span>
-              <code
-                id="invite-code"
-                class="rounded-lg bg-slate-100 px-3 py-1.5 font-mono text-sm font-bold tracking-widest text-slate-700"
-              >
-                {inviteCode}
-              </code>
-              <button
-                id="copy-invite"
-                type="button"
-                class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                📋 Kopieren
-              </button>
-              <a
-                href={'/register?code=' + inviteCode}
-                class="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
-              >
-                Link zum Einladen
-              </a>
-            </div>
-          </div>
-          <form id="settings-form" class="mt-4 grid items-end gap-3 sm:grid-cols-3">
-            <div>
-              <label for="set-start" class="mb-1 block text-xs text-slate-500">Startstand Gemeinschaftskonto (€)</label>
-              <input id="set-start" type="number" step="0.01" min="0" value={settings.start} class={INPUT_CLASS} />
-            </div>
-            <div>
-              <label for="set-contribution" class="mb-1 block text-xs text-slate-500">Fixbetrag pro Person/Monat (€)</label>
-              <input id="set-contribution" type="number" step="0.01" min="0" value={settings.contribution} class={INPUT_CLASS} />
-            </div>
-            <button type="submit" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700">
-              Speichern
-            </button>
-          </form>
-        </details>
       </main>
 
       <script dangerouslySetInnerHTML={{ __html: script }} />

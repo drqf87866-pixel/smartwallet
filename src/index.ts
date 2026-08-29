@@ -6,6 +6,7 @@ import authRoutes from './routes/auth';
 import transactionRoutes from './routes/transactions';
 import magicRoutes from './routes/magic';
 import accountRoutes from './routes/account';
+import meRoutes from './routes/me';
 import registerRoutes from './routes/register';
 import pageRoutes from './routes/pages';
 
@@ -17,6 +18,7 @@ app.route('/', registerRoutes);
 app.route('/', transactionRoutes);
 app.route('/', magicRoutes);
 app.route('/', accountRoutes);
+app.route('/', meRoutes);
 
 app.get('/api/health', async (c) => {
   try {
@@ -57,21 +59,25 @@ app.post('/api/dev/seed', async (c) => {
   }
   const householdId = householdRow.id;
 
-  // 2) Demo-Nutzer (Passwort für beide: demo1234)
+  // 2) Demo-Nutzer (Passwort für beide: demo1234), eigener Monatsbeitrag je 700 €
   const passwordHash = await hashPassword(DEMO_PASSWORD);
   for (const user of DEMO_USERS) {
     await c.env.DB.prepare(
-      'INSERT INTO users (household_id, name, email, password_hash, is_admin) VALUES (?1, ?2, ?3, ?4, ?5)',
+      'INSERT INTO users (household_id, name, email, password_hash, is_admin, monthly_contribution) VALUES (?1, ?2, ?3, ?4, ?5, ?6)',
     )
-      .bind(householdId, user.name, user.email, passwordHash, user.email.startsWith('anna') ? 1 : 0)
+      .bind(
+        householdId,
+        user.name,
+        user.email,
+        passwordHash,
+        user.email.startsWith('anna') ? 1 : 0,
+        700,
+      )
       .run();
   }
 
   // 3) Einstellungen für den Demo-Haushalt
-  const defaults = [
-    { key: 'joint_start_balance', value: '500' },
-    { key: 'joint_contribution', value: '700' },
-  ];
+  const defaults = [{ key: 'joint_start_balance', value: '500' }];
   const settingStmt = c.env.DB.prepare(
     'INSERT INTO settings (household_id, key, value) VALUES (?1, ?2, ?3) ON CONFLICT(household_id, key) DO NOTHING',
   );
@@ -146,7 +152,7 @@ app.post('/api/dev/seed', async (c) => {
     household: { name: 'Muster-Haushalt', invite_code: inviteCode },
     users: DEMO_USERS.map(({ name, email }) => ({ name, email })),
     transactions: demoTransactions.length,
-    settings: { joint_start_balance: 500, joint_contribution: 700 },
+    settings: { joint_start_balance: 500 },
     demoLogin: { email: 'anna@smartwallet.app', password: DEMO_PASSWORD },
   });
 });

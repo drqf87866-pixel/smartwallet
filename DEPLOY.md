@@ -192,6 +192,11 @@ npx wrangler deploy
 - **Upgrade auf v0.3 (Haushalte)**: wenn deine D1 noch vor der Haushalts-Erweiterung eingerichtet
   wurde, einmal `npx wrangler d1 execute smartwallet-db --remote --file=./migrations/002_households.sql`
   ausführen — legt Haushalte-Tabellen an und hängt bestehende Nutzer in einen Standard-Haushalt.
+- **Upgrade auf v0.4 (eigener Monatsbeitrag)**: einmal
+  `npx wrangler d1 execute smartwallet-db --remote --file=./migrations/003_monthly_contribution.sql`
+  ausführen — ergibt die Spalte `users.monthly_contribution` und übernimmt den bisherigen
+  haushaltsweiten Fixbetrag (`joint_contribution`) einmalig auf alle Mitglieder. Der Beitrag wird
+  danach von jedem Mitglied selbst unter „Einstellungen" gesetzt.
 
 ---
 

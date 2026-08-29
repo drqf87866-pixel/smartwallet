@@ -9,7 +9,6 @@ account.use('/api/contribution', requireAuth);
 account.use('/api/settlements', requireAuth);
 
 const START_KEY = 'joint_start_balance';
-const CONTRIBUTION_KEY = 'joint_contribution';
 
 function toNumber(value: unknown, fallback = 0): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -28,7 +27,6 @@ async function getSettings(db: D1Database, householdId: number) {
   const map = new Map(results.map((row) => [row.key, row.value]));
   return {
     start: toNumber(map.get(START_KEY), 0),
-    contribution: toNumber(map.get(CONTRIBUTION_KEY), 0),
   };
 }
 
@@ -36,7 +34,6 @@ account.get('/api/settings', async (c) => {
   const settings = await getSettings(c.env.DB, c.get('householdId'));
   return c.json({
     joint_start_balance: settings.start,
-    joint_contribution: settings.contribution,
   });
 });
 
@@ -53,11 +50,6 @@ account.put('/api/settings', async (c) => {
     if (value < 0) return c.json({ error: 'joint_start_balance muss eine Zahl ≥ 0 sein' }, 400);
     updates.push({ key: START_KEY, value: String(Math.round(value * 100) / 100) });
   }
-  if (CONTRIBUTION_KEY in body) {
-    const value = toNumber(body[CONTRIBUTION_KEY], -1);
-    if (value < 0) return c.json({ error: 'joint_contribution muss eine Zahl ≥ 0 sein' }, 400);
-    updates.push({ key: CONTRIBUTION_KEY, value: String(Math.round(value * 100) / 100) });
-  }
   if (updates.length === 0) {
     return c.json({ error: 'Keine gültigen Einstellungen übergeben' }, 400);
   }
@@ -70,24 +62,27 @@ account.put('/api/settings', async (c) => {
   const settings = await getSettings(c.env.DB, householdId);
   return c.json({
     joint_start_balance: settings.start,
-    joint_contribution: settings.contribution,
   });
 });
 
 /**
- * Bucht den Fixbetrag aus den Haushalts-Einstellungen als Monatsbeitrag
- * (transfer). Pro Nutzer und Monat nur einmal – zweiter Aufruf liefert 409.
+ * Bucht den eigenen Monatsbeitrag (users.monthly_contribution, wird pro
+ * Mitglied unter /settings gesetzt) als Transfer aufs Gemeinschaftskonto.
+ * Pro Nutzer und Monat nur einmal – zweiter Aufruf liefert 409.
  */
 account.post('/api/contribution', async (c) => {
-  const { contribution } = await getSettings(c.env.DB, c.get('householdId'));
+  const userId = c.get('userId');
+  const userRow = await c.env.DB.prepare('SELECT monthly_contribution FROM users WHERE id = ?1')
+    .bind(userId)
+    .first<{ monthly_contribution: number }>();
+  const contribution = userRow?.monthly_contribution ?? 0;
   if (contribution <= 0) {
     return c.json(
-      { error: 'Kein Fixbetrag hinterlegt – bitte zuerst unter Einstellungen setzen' },
+      { error: 'Kein Monatsbeitrag hinterlegt – bitte zuerst unter Einstellungen setzen' },
       422,
     );
   }
 
-  const userId = c.get('userId');
   const monthPrefix = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}%`;
   const existing = await c.env.DB.prepare(
     "SELECT id FROM transactions WHERE type = 'transfer' AND category = 'Beitrag' AND user_id = ?1 AND date LIKE ?2 LIMIT 1",
