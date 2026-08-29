@@ -104,8 +104,13 @@ Das Gemini-Modell steht bereits fest in `wrangler.toml` unter `[vars]`
 ## Schritt 5: Deployen
 
 ```bash
-npx wrangler deploy
+npm run deploy
 ```
+
+> ⚠️ **Immer `npm run deploy` nutzen, nie direkt `npx wrangler deploy`!** Der npm-Script
+> baut vorab das Tailwind-CSS (`predeploy` → `build:css`, Output: `public/assets/app.css`).
+> Ohne diesen Schritt deployed die App zwar, aber alle Seiten laden ohne Stylesheet
+> (`/assets/app.css` wäre nicht vorhanden).
 
 Wrangler gibt am Ende die Produktions-URL aus, z. B.:
 
@@ -182,7 +187,7 @@ Danach im Browser einloggen und „Beitrag buchen" für beide testen.
 ```bash
 git pull            # bzw. deine Änderungen
 npm run typecheck   # sicher sein
-npx wrangler deploy
+npm run deploy      # baut CSS vorab und deployed
 ```
 
 - **Nur Code-Änderungen**: `wrangler deploy` reicht — Daten und Secrets bleiben unberührt.

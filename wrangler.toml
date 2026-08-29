@@ -2,6 +2,15 @@ name = "smartwallet"
 main = "src/index.ts"
 compatibility_date = "2025-05-05"
 
+# Statische Assets (precompiliertes CSS, PWA-Manifest, Icons, Service Worker).
+# Dateien aus ./public werden vor den Worker-Routen ausgeliefert.
+# run_worker_first schützt API- und Seitenrouten davor, durch zukünftige
+# Dateien unter public/ überschattet zu werden.
+[assets]
+directory = "./public"
+html_handling = "none"
+run_worker_first = ["/api/*", "/", "/login", "/register", "/settings", "/dashboard", "/dashboard/*"]
+
 # D1-Bindung. WICHTIG: Der Bindungsname muss exakt "DB" bleiben – der Code
 # liest c.env.DB. Nur die database_id ersetzen, nichts umbenennen!
 [[d1_databases]]

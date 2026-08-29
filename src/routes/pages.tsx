@@ -6,7 +6,7 @@ import type { Env } from '../types';
 import { COOKIE_NAME } from '../lib/auth';
 import { LoginView } from '../views/login';
 import { RegisterView } from '../views/register';
-import { DashboardView, type DebtRow, type DashboardTx } from '../views/dashboard';
+import { DashboardView, SummaryCards, TxList, type DashboardTx, type DebtRow } from '../views/dashboard';
 import { SettingsView } from '../views/settings';
 
 const pages = new Hono<Env>();
@@ -104,9 +104,50 @@ pages.get('/dashboard', async (c) => {
   const auth = await getAuth(c);
   if (!auth) return c.redirect('/login');
 
+  const data = await loadDashboardData(c, auth, monthParam(c.req.query('month')));
+  return c.html(<DashboardView {...data} />);
+});
+
+/**
+ * HTML-Fragmente für Partial Updates: der Client tauscht nach Mutationen nur
+ * diese Bereiche aus statt die ganze Seite neu zu laden. Für fetch-Aufrufe
+ * (Header X-Fragments) wird bei fehlender Session 401 JSON geliefert statt
+ * eines Redirects, damit der Client sauber reagieren kann.
+ */
+
+pages.get('/dashboard/fragments/summary', async (c) => {
+  const auth = await requireDashboardAuth(c);
+  if (auth instanceof Response) return auth;
+  const data = await loadSummaryData(c, auth, monthParam(c.req.query('month')));
+  return c.html(<SummaryCards {...data} />);
+});
+
+pages.get('/dashboard/fragments/list', async (c) => {
+  const auth = await requireDashboardAuth(c);
+  if (auth instanceof Response) return auth;
+  // Der Client fragt nur die Variante an, die er tatsächlich anzeigt – das
+  // List-Fragment transportiert dann nicht beide Repräsentationen.
+  const layoutParam = c.req.query('layout');
+  const layout = layoutParam === 'mobile' || layoutParam === 'desktop' ? layoutParam : undefined;
+  const data = await loadListData(c, auth, monthParam(c.req.query('month')));
+  return c.html(<TxList {...data} layout={layout} />);
+});
+
+/** Auth für Fragment- und Dashboard-Routen: bei Fehlen 401 JSON (Fetch) oder Redirect. */
+async function requireDashboardAuth(c: Context<Env>): Promise<AuthInfo | Response> {
+  const auth = await getAuth(c);
+  if (!auth) {
+    return c.req.header('X-Fragments')
+      ? c.json({ error: 'Sitzung abgelaufen' }, 401)
+      : c.redirect('/login');
+  }
+  return auth;
+}
+
+/** Daten für die Kopf-Karten inkl. Aktions-Buttons (Summary-Fragment). */
+async function loadSummaryData(c: Context<Env>, auth: AuthInfo, month: string) {
   const hid = auth.hid;
   const uid = auth.uid;
-  const month = monthParam(c.req.query('month'));
   const prefix = `${month}%`;
   const currentPrefix = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}%`;
 
@@ -250,6 +291,25 @@ pages.get('/dashboard', async (c) => {
         .first<{ n: number }>()
     )?.n! > 0;
 
+  return {
+    userName: auth.name,
+    householdName: household?.name ?? 'Haushalt',
+    members,
+    monthLabel: monthLabelFor(month),
+    privateBalance,
+    jointPot,
+    sharedMonth,
+    debts,
+    myContribution,
+    contributionBooked,
+  };
+}
+
+/** Daten für die Transaktionsliste inkl. Monatsnavi (List-Fragment). */
+async function loadListData(c: Context<Env>, auth: AuthInfo, month: string) {
+  const hid = auth.hid;
+  const prefix = `${month}%`;
+
   // Historie des Haushalts im gewählten Monat
   const { results: transactions } = await c.env.DB.prepare(
     `SELECT t.id, u.name AS created_by, t.amount, t.type, t.category, t.description, t.date, t.scope, t.paid_from
@@ -262,31 +322,30 @@ pages.get('/dashboard', async (c) => {
     .bind(hid, prefix)
     .all<DashboardTx>();
 
-  const monthLabel = new Intl.DateTimeFormat('de-DE', {
+  return {
+    monthLabel: monthLabelFor(month),
+    prevMonth: shiftMonth(month, -1),
+    nextMonth: shiftMonth(month, 1),
+    transactions,
+    today: new Date().toISOString().slice(0, 10),
+  };
+}
+
+function monthLabelFor(month: string): string {
+  return new Intl.DateTimeFormat('de-DE', {
     month: 'long',
     year: 'numeric',
     timeZone: 'UTC',
   }).format(new Date(`${month}-01T00:00:00Z`));
+}
 
-  return c.html(
-    <DashboardView
-      userName={auth.name}
-      householdName={household?.name ?? 'Haushalt'}
-      members={members}
-      monthLabel={monthLabel}
-      prevMonth={shiftMonth(month, -1)}
-      nextMonth={shiftMonth(month, 1)}
-      privateBalance={privateBalance}
-      jointPot={jointPot}
-      sharedMonth={sharedMonth}
-      debts={debts}
-      settings={settings}
-      myContribution={myContribution}
-      contributionBooked={contributionBooked}
-      transactions={transactions}
-      today={new Date().toISOString().slice(0, 10)}
-    />,
-  );
-});
+/** Kompletter Dashboard-Datensatz für die ganzseitige Ansicht. */
+async function loadDashboardData(c: Context<Env>, auth: AuthInfo, month: string) {
+  const [summary, list] = await Promise.all([
+    loadSummaryData(c, auth, month),
+    loadListData(c, auth, month),
+  ]);
+  return { ...summary, ...list, month };
+}
 
 export default pages;

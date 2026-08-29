@@ -17,7 +17,7 @@ const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' 
 const fmt = (n: number) => eur.format(n);
 
 const INPUT_CLASS =
-  'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
+  'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
 
 const script = `
 function showToast(message, kind) {
@@ -136,14 +136,14 @@ export const SettingsView: FC<SettingsProps> = ({
         <div class="flex items-center gap-3">
           <a
             href="/dashboard"
-            class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            class="flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
           >
             ← Dashboard
           </a>
         </div>
         <button
           id="logout-btn"
-          class="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-red-700"
+          class="flex min-h-[44px] items-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
         >
           Abmelden
         </button>
@@ -210,6 +210,7 @@ export const SettingsView: FC<SettingsProps> = ({
             <input
               id="contribution-amount"
               type="number"
+              inputmode="decimal"
               step="0.01"
               min="0"
               value={myContribution}
@@ -235,6 +236,7 @@ export const SettingsView: FC<SettingsProps> = ({
             <input
               id="set-start"
               type="number"
+              inputmode="decimal"
               step="0.01"
               min="0"
               value={startBalance}

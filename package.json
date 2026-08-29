@@ -4,8 +4,10 @@
   "private": true,
   "description": "Einnahmen-Ausgaben-Dashboard für Paare – Cloudflare Worker + Hono + D1",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "npm run build:css && wrangler dev",
     "deploy": "wrangler deploy",
+    "predeploy": "npm run build:css",
+    "build:css": "tailwindcss -i ./src/styles/app.css -o ./public/assets/app.css --minify",
     "db:init": "wrangler d1 execute smartwallet-db --local --file=./schema.sql",
     "db:init:remote": "wrangler d1 execute smartwallet-db --remote --file=./schema.sql",
     "db:reset": "wrangler d1 execute smartwallet-db --local --file=./scripts/reset.sql && npm run db:init",
@@ -16,6 +18,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260829.0",
+    "tailwindcss": "^3.4.17",
     "typescript": "^5.5.0",
     "wrangler": "^4.0.0"
   },

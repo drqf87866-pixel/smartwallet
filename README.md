@@ -19,6 +19,12 @@ npm run db:init
 npm run dev
 ```
 
+`npm run dev` und `npm run deploy` bauen das Tailwind-CSS automatisch vorab
+(`npm run build:css`, Output: `public/assets/app.css`). Das precompilierte CSS
+wird über das `[assets]`-Binding aus `public/` ausgeliefert – der Service
+Worker cache-t diese Assets offline. Nach Änderungen an Klassen in `src/views/*`
+ CSS neu bauen (passiert bei `npm run dev` nur beim Start).
+
 `npm run db:reset` löscht die lokale D1 komplett und legt das Schema neu an
 (Transfers/Settings-Modell ab v0.2 – bei Upgrade von v0.1 lokal nötig).
 

@@ -4,3 +4,4 @@ node_modules/
 dist/
 .kilo/
 .zcode/
+public/assets/app.css
