@@ -7,14 +7,17 @@ type RegisterProps = {
 };
 
 const MODE_SCRIPT = `
+var TAB_ACTIVE = ['bg-indigo-600', 'text-white'];
+var TAB_IDLE = ['bg-slate-100', 'text-slate-500', 'hover:bg-slate-200'];
+
 function setMode(next) {
   mode = next;
-  document.getElementById('tab-create').className = next === 'create'
-    ? 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold bg-indigo-600 text-white'
-    : 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200';
-  document.getElementById('tab-join').className = next === 'join'
-    ? 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold bg-indigo-600 text-white'
-    : 'flex-1 rounded-lg px-3 py-2 text-sm font-semibold bg-slate-100 text-slate-500 hover:bg-slate-200';
+  [['tab-create', next === 'create'], ['tab-join', next === 'join']].forEach(function (pair) {
+    var tab = document.getElementById(pair[0]);
+    tab.setAttribute('aria-pressed', String(pair[1]));
+    TAB_ACTIVE.forEach(function (cls) { tab.classList.toggle(cls, pair[1]); });
+    TAB_IDLE.forEach(function (cls) { tab.classList.toggle(cls, !pair[1]); });
+  });
   document.getElementById('field-create').classList.toggle('hidden', next !== 'create');
   document.getElementById('field-join').classList.toggle('hidden', next !== 'join');
 }
@@ -40,6 +43,7 @@ document.getElementById('register-form').addEventListener('submit', async functi
   if (password !== confirm) {
     errorBox.textContent = 'Die Passwörter stimmen nicht überein';
     errorBox.classList.remove('hidden');
+    document.getElementById('password-confirm').focus();
     return;
   }
   btn.disabled = true;
@@ -79,15 +83,12 @@ document.getElementById('register-form').addEventListener('submit', async functi
 });
 `;
 
-const INPUT_CLASS =
-  'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-
 export const RegisterView: FC<RegisterProps> = ({ initialCode = '' }) => (
   <Layout title="Registrieren">
     <main class="flex min-h-screen items-center justify-center p-6">
       <div class="w-full max-w-md">
         <div class="mb-6 text-center">
-          <div class="text-4xl">💳</div>
+          <div class="text-4xl" aria-hidden="true">💳</div>
           <h1 class="mt-2 text-3xl font-bold tracking-tight">SmartWallet</h1>
           <p class="mt-1 text-sm text-slate-500">
             Erstelle deinen Haushalt oder tritt mit einem Einladungscode bei.
@@ -100,13 +101,23 @@ export const RegisterView: FC<RegisterProps> = ({ initialCode = '' }) => (
           data-initial-code={initialCode}
           class="space-y-4 rounded-2xl bg-white p-6 shadow-xl shadow-indigo-100"
         >
-          <div id="register-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600"></div>
+          <div id="register-error" role="alert" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600"></div>
 
-          <div class="flex gap-2">
-            <button type="button" id="tab-create" class="flex-1 rounded-lg px-3 py-2 text-sm font-semibold">
+          <div class="flex gap-2" role="group" aria-label="Registrierungsart">
+            <button
+              type="button"
+              id="tab-create"
+              aria-pressed="true"
+              class="min-h-[44px] flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition"
+            >
               Neuen Haushalt erstellen
             </button>
-            <button type="button" id="tab-join" class="flex-1 rounded-lg px-3 py-2 text-sm font-semibold">
+            <button
+              type="button"
+              id="tab-join"
+              aria-pressed="false"
+              class="min-h-[44px] flex-1 rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-200"
+            >
               Einladungscode einlösen
             </button>
           </div>
@@ -120,8 +131,9 @@ export const RegisterView: FC<RegisterProps> = ({ initialCode = '' }) => (
               type="text"
               maxlength={60}
               required
+              autocomplete="organization"
               placeholder="z. B. Familie Musterhoff"
-              class={INPUT_CLASS}
+              class="input"
             />
           </div>
 
@@ -134,14 +146,15 @@ export const RegisterView: FC<RegisterProps> = ({ initialCode = '' }) => (
               type="text"
               maxlength={8}
               required
+              autocomplete="off"
               placeholder="z. B. K7M4QX2T"
-              class={`${INPUT_CLASS} uppercase tracking-widest`}
+              class="input uppercase tracking-widest"
             />
           </div>
 
           <div>
             <label for="name" class="mb-1 block text-sm font-medium text-slate-700">Dein Name</label>
-            <input id="name" type="text" maxlength={50} required placeholder="Vorname" class={INPUT_CLASS} />
+            <input id="name" type="text" maxlength={50} required autocomplete="name" placeholder="Vorname" class="input" />
           </div>
 
           <div>
@@ -152,7 +165,7 @@ export const RegisterView: FC<RegisterProps> = ({ initialCode = '' }) => (
               required
               autocomplete="email"
               placeholder="du@beispiel.de"
-              class={INPUT_CLASS}
+              class="input"
             />
           </div>
 
@@ -165,7 +178,7 @@ export const RegisterView: FC<RegisterProps> = ({ initialCode = '' }) => (
                 required
                 minlength={8}
                 autocomplete="new-password"
-                class={INPUT_CLASS}
+                class="input"
               />
             </div>
             <div>
@@ -178,7 +191,7 @@ export const RegisterView: FC<RegisterProps> = ({ initialCode = '' }) => (
                 required
                 minlength={8}
                 autocomplete="new-password"
-                class={INPUT_CLASS}
+                class="input"
               />
             </div>
           </div>
@@ -196,7 +209,7 @@ export const RegisterView: FC<RegisterProps> = ({ initialCode = '' }) => (
           <button
             id="register-btn"
             type="submit"
-            class="w-full rounded-lg bg-indigo-600 px-4 py-2.5 font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+            class="min-h-[44px] w-full rounded-lg bg-indigo-600 px-4 py-2.5 font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
           >
             Konto erstellen
           </button>

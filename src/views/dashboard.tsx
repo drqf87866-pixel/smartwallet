@@ -1,7 +1,8 @@
 import type { FC } from 'hono/jsx';
 import type { TransactionAccount, TransactionScope, TransactionType } from '../types';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
 import { Layout } from './layout';
+import { BottomNav, CategorySelect, INPUT_CLASS, LABEL_CLASS } from './shared';
+import { fmt, fmtDay, fmtTime } from '../lib/format';
 
 export type DashboardTx = {
   id: number;
@@ -54,34 +55,12 @@ export type DashboardProps = SummaryCardsProps & TxListProps & {
   recurringCount: number;
 };
 
-const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-const fmt = (n: number) => eur.format(n);
-const dayFmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
-const timeFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
-const fmtDay = (iso: string) => dayFmt.format(new Date(iso));
-const fmtTime = (iso: string) => timeFmt.format(new Date(iso));
-
-const INPUT_CLASS =
-  'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-
-const LABEL_CLASS = 'mb-1 block text-xs text-slate-500';
-
-/** Kategorie-Dropdown – Optionen werden per JS je nach Art (Ausgabe/Einnahme) befüllt. */
-const CategorySelect: FC<{ id: string }> = ({ id }) => (
-  <select
-    id={id}
-    class={INPUT_CLASS}
-    data-expense-cats={JSON.stringify(EXPENSE_CATEGORIES)}
-    data-income-cats={JSON.stringify(INCOME_CATEGORIES)}
-  />
-);
-
 const BADGE_STYLES = {
   joint: 'bg-indigo-50 text-indigo-600',
-  advance: 'bg-amber-50 text-amber-600',
+  advance: 'bg-amber-50 text-amber-700',
   personal: 'bg-slate-100 text-slate-500',
-  transfer: 'bg-emerald-50 text-emerald-600',
-  settlement: 'bg-amber-50 text-amber-600',
+  transfer: 'bg-emerald-50 text-emerald-700',
+  settlement: 'bg-amber-50 text-amber-700',
 } as const;
 
 function accountBadge(t: DashboardTx): { label: string; style: string } {
@@ -97,7 +76,7 @@ function accountBadge(t: DashboardTx): { label: string; style: string } {
 }
 
 const amountColor = (t: DashboardTx) =>
-  t.type === 'income' ? 'text-emerald-600' : t.type === 'expense' ? 'text-red-500' : 'text-slate-500';
+  t.type === 'income' ? 'text-emerald-700' : t.type === 'expense' ? 'text-red-600' : 'text-slate-500';
 const amountSign = (t: DashboardTx) =>
   t.type === 'income' ? '+' : t.type === 'expense' ? '−' : '↗ ';
 const isEditable = (t: DashboardTx) => t.type !== 'settlement' && t.category !== 'Beitrag';
@@ -106,7 +85,7 @@ const isEditable = (t: DashboardTx) => t.type !== 'settlement' && t.category !==
 const DebtRows: FC<{ debts: DebtRow[] }> = ({ debts }) => (
   <>
     {debts.map((d) => (
-      <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-2">
+      <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
         <span class={d.kind === 'owed-to-you' ? 'text-emerald-700' : 'text-amber-700'}>
           {d.kind === 'owed-to-you' ? `${d.other} → du` : `du → ${d.other}`}
         </span>
@@ -118,7 +97,7 @@ const DebtRows: FC<{ debts: DebtRow[] }> = ({ debts }) => (
             data-amount={d.amount.toFixed(2)}
             data-from={d.kind === 'you-owe' ? 'me' : d.otherId}
             data-to={d.kind === 'you-owe' ? d.otherId : 'me'}
-            class="min-h-[28px] rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 hover:bg-indigo-100"
+            class="min-h-[36px] rounded border border-indigo-200 bg-indigo-50 px-2.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100"
           >
             begleichen
           </button>
@@ -146,21 +125,21 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
     <>
       {/* Mobile: eine kompakte Karte, 3 Werte nebeneinander */}
       <section class="mb-4 md:hidden">
-        <article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+        <article class="card">
           <div class="grid grid-cols-3 divide-x divide-slate-200 text-center">
             <div class="px-1">
-              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-400">Privat</p>
+              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Privat</p>
               <p
                 class={
                   'mt-1 text-lg font-bold tabular-nums ' +
-                  (privateBalance >= 0 ? 'text-emerald-600' : 'text-red-600')
+                  (privateBalance >= 0 ? 'text-emerald-700' : 'text-red-600')
                 }
               >
                 {fmt(privateBalance)}
               </p>
             </div>
             <div class="px-1">
-              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-400">Gemeinsam</p>
+              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Gemeinsam</p>
               <p
                 class={
                   'mt-1 text-lg font-bold tabular-nums ' +
@@ -171,11 +150,11 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
               </p>
             </div>
             <div class="px-1">
-              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-400">Ausgaben</p>
+              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Ausgaben</p>
               <p class="mt-1 text-lg font-bold tabular-nums text-indigo-600">{fmt(sharedMonth.total)}</p>
             </div>
           </div>
-          <p class="mt-2 text-center text-[11px] leading-tight text-slate-400">
+          <p class="mt-2 text-center text-[11px] leading-tight text-slate-500">
             Start {fmt(jointPot.start)} · eingezahlt {fmt(jointPot.transfers)} ·{' '}
             {fmt(sharedMonth.advanced)} vorgestreckt · {monthLabel}
           </p>
@@ -185,17 +164,19 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
               Du bist solo im Haushalt. Einladungscode: oben rechts auf dein Profilbild → Einstellungen.
             </p>
           ) : debts.length === 0 ? (
-            <p class="mt-3 text-center text-xs font-medium text-emerald-600">Alles ausgeglichen 🎉</p>
+            <p class="mt-3 text-center text-xs font-medium text-emerald-700">
+              Alles ausgeglichen <span aria-hidden="true">🎉</span>
+            </p>
           ) : (
             <details class="group mt-3 border-t border-slate-100 pt-1">
               <summary class="flex min-h-[44px] cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
                 <span class="text-xs font-medium text-slate-500">Offene Positionen ({debts.length})</span>
-                <span class="text-slate-400 transition group-open:rotate-180">▾</span>
+                <span class="text-slate-500 transition group-open:rotate-180" aria-hidden="true">▾</span>
               </summary>
               <ul class="space-y-1.5 pb-1 text-xs">
                 <DebtRows debts={debts} />
               </ul>
-              <p class="mt-1 text-[10px] text-slate-400">
+              <p class="mt-1 text-[10px] text-slate-500">
                 laufend: private Vorschüsse 1/{members.length} umgelegt − Ausgleiche
               </p>
             </details>
@@ -203,75 +184,73 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
         </article>
       </section>
 
-      {/* Desktop: Kachel-Grid (unverändert) */}
+      {/* Desktop: Kachel-Grid */}
       <section class="mb-8 hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-4">
-      <article class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 class="text-sm font-medium text-slate-500">Mein privater Saldo</h2>
-        <p class={'mt-2 text-2xl font-bold sm:text-3xl ' + (privateBalance >= 0 ? 'text-emerald-600' : 'text-red-600')}>
-          {fmt(privateBalance)}
-        </p>
-        <p class="mt-1 text-xs text-slate-400">inkl. Beiträge & Ausgleichen</p>
-      </article>
-
-      <article class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 class="text-sm font-medium text-slate-500">Gemeinschaftskonto</h2>
-        <p class={'mt-2 text-2xl font-bold sm:text-3xl ' + (jointPot.saldo >= 0 ? 'text-indigo-600' : 'text-red-600')}>
-          {fmt(jointPot.saldo)}
-        </p>
-        <p class="mt-1 text-xs text-slate-400">
-          Startstand {fmt(jointPot.start)} · Einzahlungen {fmt(jointPot.transfers)}
-        </p>
-      </article>
-
-      <article class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 class="text-sm font-medium text-slate-500">Gemeinsame Ausgaben</h2>
-        <p class="mt-2 text-2xl font-bold text-indigo-600 sm:text-3xl">{fmt(sharedMonth.total)}</p>
-        <p class="mt-1 text-xs text-slate-400">
-          davon {fmt(sharedMonth.advanced)} privat vorgestreckt · {monthLabel}
-        </p>
-      </article>
-
-      <article class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
-        <h2 class="text-sm font-medium text-slate-500">Wer schuldet wem?</h2>
-        {members.length < 2 ? (
-          <p class="mt-2 text-xs text-slate-500">
-            Du bist derzeit solo im Haushalt. Teile den Einladungscode (oben rechts unter deinem Namen → Einstellungen),
-            um die gemeinsame Abrechnung zu starten.
+        <article class="card">
+          <h2 class="text-sm font-medium text-slate-500">Mein privater Saldo</h2>
+          <p class={'mt-2 text-2xl font-bold tabular-nums sm:text-3xl ' + (privateBalance >= 0 ? 'text-emerald-700' : 'text-red-600')}>
+            {fmt(privateBalance)}
           </p>
-        ) : debts.length === 0 ? (
-          <>
-            <p class="mt-2 text-2xl font-bold text-emerald-600 sm:text-3xl">{fmt(0)}</p>
-            <p class="mt-1 text-xs text-slate-400">Alles ausgeglichen 🎉</p>
-          </>
-        ) : (
-          <ul class="mt-2 max-h-40 space-y-1.5 overflow-y-auto text-xs">
-            <DebtRows debts={debts} />
-          </ul>
-        )}
-        <p class="mt-2 text-[10px] text-slate-400">
-          laufend: private Vorschüsse 1/{members.length} umgelegt − Ausgleiche
-        </p>
-      </article>
-    </section>
+          <p class="mt-1 text-xs text-slate-500">inkl. Beiträge & Ausgleichen</p>
+        </article>
 
-    <section class="mb-4 flex flex-wrap items-center gap-3">
-      {myContribution > 0 && !contributionBooked ? (
-        <button
-          type="button"
-          data-action="contribution"
-          class="min-h-[44px] rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-        >
-          💰 Beitrag buchen ({fmt(myContribution)})
+        <article class="card">
+          <h2 class="text-sm font-medium text-slate-500">Gemeinschaftskonto</h2>
+          <p class={'mt-2 text-2xl font-bold tabular-nums sm:text-3xl ' + (jointPot.saldo >= 0 ? 'text-indigo-600' : 'text-red-600')}>
+            {fmt(jointPot.saldo)}
+          </p>
+          <p class="mt-1 text-xs text-slate-500">
+            Startstand {fmt(jointPot.start)} · Einzahlungen {fmt(jointPot.transfers)}
+          </p>
+        </article>
+
+        <article class="card">
+          <h2 class="text-sm font-medium text-slate-500">Gemeinsame Ausgaben</h2>
+          <p class="mt-2 text-2xl font-bold tabular-nums text-indigo-600 sm:text-3xl">{fmt(sharedMonth.total)}</p>
+          <p class="mt-1 text-xs text-slate-500">
+            davon {fmt(sharedMonth.advanced)} privat vorgestreckt · {monthLabel}
+          </p>
+        </article>
+
+        <article class="card">
+          <h2 class="text-sm font-medium text-slate-500">Wer schuldet wem?</h2>
+          {members.length < 2 ? (
+            <p class="mt-2 text-xs text-slate-500">
+              Du bist derzeit solo im Haushalt. Teile den Einladungscode (oben rechts unter deinem Namen → Einstellungen),
+              um die gemeinsame Abrechnung zu starten.
+            </p>
+          ) : debts.length === 0 ? (
+            <>
+              <p class="mt-2 text-2xl font-bold tabular-nums text-emerald-700 sm:text-3xl">{fmt(0)}</p>
+              <p class="mt-1 text-xs text-slate-500">
+                Alles ausgeglichen <span aria-hidden="true">🎉</span>
+              </p>
+            </>
+          ) : (
+            <ul class="mt-2 max-h-40 space-y-1.5 overflow-y-auto text-xs">
+              <DebtRows debts={debts} />
+            </ul>
+          )}
+          <p class="mt-2 text-[10px] text-slate-500">
+            laufend: private Vorschüsse 1/{members.length} umgelegt − Ausgleiche
+          </p>
+        </article>
+      </section>
+
+      <section class="mb-4 flex flex-wrap items-center gap-3">
+        {myContribution > 0 && !contributionBooked ? (
+          <button
+            type="button"
+            data-action="contribution"
+            class="btn-primary bg-emerald-600 hover:bg-emerald-700"
+          >
+            <span aria-hidden="true">💰</span> Beitrag buchen ({fmt(myContribution)})
+          </button>
+        ) : null}
+        <button type="button" data-action="open-settle" class="btn-secondary">
+          <span aria-hidden="true">🤝</span> Ausgleichszahlung erfassen
         </button>
-      ) : null}
-      <button
-        type="button"
-        data-action="open-settle"
-        class="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-      >
-        🤝 Ausgleichszahlung erfassen
-      </button>
-    </section>
+      </section>
     </>
   );
 };
@@ -283,7 +262,7 @@ const TxRow: FC<{ t: DashboardTx }> = ({ t }) => {
     <tr class="border-b border-slate-100 last:border-0">
       <td class="whitespace-nowrap py-2.5 pr-3 text-slate-500">
         {fmtDay(t.date)}
-        <span class="block text-xs text-slate-400">{fmtTime(t.date)}</span>
+        <span class="block text-xs text-slate-500">{fmtTime(t.date)}</span>
       </td>
       <td class="py-2.5 pr-3">
         <span class="font-medium text-slate-700">{t.description || t.category}</span>
@@ -291,8 +270,12 @@ const TxRow: FC<{ t: DashboardTx }> = ({ t }) => {
           {t.category}
         </span>
         {t.recurring_id ? (
-          <span class="ml-1 whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600" title="Wiederkehrende Zahlung">
-            🔁
+          <span
+            class="ml-1 whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600"
+            title="Wiederkehrende Zahlung"
+          >
+            <span aria-hidden="true">🔁</span>
+            <span class="sr-only">Wiederkehrende Zahlung</span>
           </span>
         ) : null}
       </td>
@@ -302,7 +285,7 @@ const TxRow: FC<{ t: DashboardTx }> = ({ t }) => {
           {badge.label}
         </span>
       </td>
-      <td class={'whitespace-nowrap py-2.5 text-right font-semibold ' + amountColor(t)}>
+      <td class={'whitespace-nowrap py-2.5 text-right font-semibold tabular-nums ' + amountColor(t)}>
         {amountSign(t)}
         {fmt(t.amount)}
       </td>
@@ -314,17 +297,19 @@ const TxRow: FC<{ t: DashboardTx }> = ({ t }) => {
               data-edit
               data-tx={JSON.stringify(t)}
               title="Bearbeiten"
+              aria-label="Transaktion bearbeiten"
               class="h-8 w-8 rounded border border-indigo-200 bg-indigo-50 text-sm font-medium text-indigo-600 hover:bg-indigo-100"
             >
-              ✏️
+              <span aria-hidden="true">✏️</span>
             </button>
             <button
               type="button"
               data-delete={t.id}
               title="Löschen"
+              aria-label="Transaktion löschen"
               class="ml-1.5 h-8 w-8 rounded border border-red-200 bg-red-50 text-sm font-medium text-red-600 hover:bg-red-100"
             >
-              🗑
+              <span aria-hidden="true">🗑</span>
             </button>
           </>
         ) : null}
@@ -340,19 +325,25 @@ const TxCard: FC<{ t: DashboardTx }> = ({ t }) => {
     <li class="flex items-start justify-between gap-3 py-3">
       <div class="min-w-0">
         <p class="truncate font-medium text-slate-700">{t.description || t.category}</p>
-        <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+        <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
           <span>
             {fmtDay(t.date)} · {fmtTime(t.date)} · {t.created_by}
           </span>
           <span class={'rounded-full px-2 py-0.5 font-medium ' + badge.style}>{badge.label}</span>
           <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">{t.category}</span>
           {t.recurring_id ? (
-            <span class="rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-600" title="Wiederkehrende Zahlung">🔁</span>
+            <span
+              class="rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-600"
+              title="Wiederkehrende Zahlung"
+            >
+              <span aria-hidden="true">🔁</span>
+              <span class="sr-only">Wiederkehrende Zahlung</span>
+            </span>
           ) : null}
         </p>
       </div>
       <div class="flex flex-col items-end gap-1.5">
-        <span class={'whitespace-nowrap font-semibold ' + amountColor(t)}>
+        <span class={'whitespace-nowrap font-semibold tabular-nums ' + amountColor(t)}>
           {amountSign(t)}
           {fmt(t.amount)}
         </span>
@@ -363,19 +354,19 @@ const TxCard: FC<{ t: DashboardTx }> = ({ t }) => {
               data-edit
               data-tx={JSON.stringify(t)}
               title="Bearbeiten"
-              aria-label="Bearbeiten"
+              aria-label="Transaktion bearbeiten"
               class="flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-sm font-medium text-indigo-600"
             >
-              ✏️
+              <span aria-hidden="true">✏️</span>
             </button>
             <button
               type="button"
               data-delete={t.id}
               title="Löschen"
-              aria-label="Löschen"
+              aria-label="Transaktion löschen"
               class="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-sm font-medium text-red-600"
             >
-              🗑
+              <span aria-hidden="true">🗑</span>
             </button>
           </span>
         ) : null}
@@ -398,30 +389,32 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
   today,
   layout,
 }) => (
-  <section class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+  <section class="card">
     <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
       <h2 class="text-sm font-medium text-slate-500">Transaktionen · {monthLabel}</h2>
-      <nav class="flex items-center gap-2 text-sm">
+      <nav class="flex items-center gap-2 text-sm" aria-label="Monatsnavigation">
         <a
           href={'/dashboard?month=' + prevMonth}
           title="Voriger Monat"
-          class="flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-lg text-slate-600 hover:bg-slate-50"
+          aria-label="Voriger Monat"
+          class="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-lg text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
-          ‹
+          <span aria-hidden="true">‹</span>
         </a>
         <a
           href={'/dashboard?month=' + nextMonth}
           title="Nächster Monat"
-          class="flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-lg text-slate-600 hover:bg-slate-50"
+          aria-label="Nächster Monat"
+          class="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-lg text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
         >
-          ›
+          <span aria-hidden="true">›</span>
         </a>
       </nav>
     </div>
 
     <details class="mb-4">
       <summary class="min-h-[44px] cursor-pointer select-none py-2 text-sm font-medium text-indigo-600">
-        ➕ Eintrag manuell hinzufügen
+        <span aria-hidden="true">➕</span> Eintrag manuell hinzufügen
       </summary>
       <form id="manual-form" class="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <label class="block">
@@ -430,7 +423,7 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
         </label>
         <label class="block">
           <span class={LABEL_CLASS}>Beschreibung</span>
-          <input id="m-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+          <input id="m-description" type="text" maxlength={200} placeholder="Beschreibung" autocomplete="off" class={INPUT_CLASS} />
         </label>
         <label class="block">
           <span class={LABEL_CLASS}>Art</span>
@@ -459,19 +452,16 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
         </label>
         <label class="block">
           <span class={LABEL_CLASS}>Datum</span>
-          <input id="m-date" type="date" value={today} class={INPUT_CLASS} />
+          <input id="m-date" type="date" value={today} autocomplete="off" class={INPUT_CLASS} />
         </label>
-        <button
-          type="submit"
-          class="min-h-[44px] self-end rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-900 sm:col-span-3 lg:col-span-4"
-        >
+        <button type="submit" class="btn-primary self-end sm:col-span-3 lg:col-span-4">
           Speichern
         </button>
       </form>
     </details>
 
     {transactions.length === 0 ? (
-      <p class="py-8 text-center text-sm text-slate-400">Noch keine Transaktionen in diesem Monat.</p>
+      <p class="py-8 text-center text-sm text-slate-500">Noch keine Transaktionen in diesem Monat.</p>
     ) : (
       <>
         {/* Mobile: Kartenliste */}
@@ -486,14 +476,15 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
         {layout !== 'mobile' ? (
           <div class="hidden overflow-x-auto md:block">
             <table class="w-full text-sm">
+              <caption class="sr-only">Transaktionen im {monthLabel}</caption>
               <thead>
-                <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-400">
-                  <th class="py-2 pr-3 font-medium">Datum</th>
-                  <th class="py-2 pr-3 font-medium">Beschreibung</th>
-                  <th class="py-2 pr-3 font-medium">Von</th>
-                  <th class="py-2 pr-3 font-medium">Konto</th>
-                  <th class="py-2 text-right font-medium">Betrag</th>
-                  <th class="py-2 pl-3 text-right font-medium">Aktionen</th>
+                <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                  <th scope="col" class="py-2 pr-3 font-medium">Datum</th>
+                  <th scope="col" class="py-2 pr-3 font-medium">Beschreibung</th>
+                  <th scope="col" class="py-2 pr-3 font-medium">Von</th>
+                  <th scope="col" class="py-2 pr-3 font-medium">Konto</th>
+                  <th scope="col" class="py-2 text-right font-medium">Betrag</th>
+                  <th scope="col" class="py-2 pl-3 text-right font-medium">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
@@ -511,6 +502,7 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
 
 /* ------------------------------------------------------------------ */
 /* Client-Script: Event-Delegation + Fragment-Refresh                  */
+/* (geteilte Helfer: /assets/app.js)                                   */
 /* ------------------------------------------------------------------ */
 
 const PILL_ACTIVE = 'rounded-full px-3 py-2 text-xs font-medium bg-indigo-600 text-white';
@@ -519,82 +511,6 @@ const PILL_IDLE = 'rounded-full px-3 py-2 text-xs font-medium bg-slate-100 text-
 const script = `
 var MAGIC_PAID_FROM = 'auto';
 
-function $(id) { return document.getElementById(id); }
-
-function showToast(message, kind) {
-  var toast = $('toast');
-  toast.textContent = message;
-  toast.style.background = kind === 'ok' ? '#059669' : kind === 'info' ? '#d97706' : '#dc2626';
-  toast.classList.remove('hidden');
-  clearTimeout(window.__toastTimer);
-  window.__toastTimer = setTimeout(function () { toast.classList.add('hidden'); }, 4000);
-}
-
-async function postJson(url, body, method) {
-  var res = await fetch(url, {
-    method: method || 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Sitzung abgelaufen');
-  }
-  var data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    throw new Error(data.error || 'Unbekannter Fehler');
-  }
-  return data;
-}
-
-// Partial Updates: nach Aktionen nur die betroffenen Bereiche tauschen
-async function fetchFragment(url) {
-  var res = await fetch(url, { headers: { 'X-Fragments': '1' } });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Sitzung abgelaufen');
-  }
-  if (!res.ok) throw new Error('Aktualisierung fehlgeschlagen');
-  return res.text();
-}
-
-async function refreshDashboard() {
-  var month = window.__MONTH;
-  if (!month || !$('summary-frag') || !$('tx-frag')) return false;
-  var parts = await Promise.all([
-    fetchFragment('/dashboard/fragments/summary?month=' + month),
-    fetchFragment('/dashboard/fragments/list?month=' + month +
-      '&layout=' + (window.matchMedia('(min-width: 768px)').matches ? 'desktop' : 'mobile')),
-  ]);
-  $('summary-frag').innerHTML = parts[0];
-  $('tx-frag').innerHTML = parts[1];
-  syncAllCategoryOptions();
-  return true;
-}
-
-async function afterMutation() {
-  try {
-    await refreshDashboard();
-  } catch (err) {
-    window.location.reload();
-  }
-}
-
-function busy(btn, text) {
-  if (!btn) return function () {};
-  var orig = btn.textContent;
-  btn.disabled = true;
-  if (text) btn.textContent = text;
-  return function () { btn.disabled = false; btn.textContent = orig; };
-}
-
-// --- Sheets: unten (mobil) bzw. mittig (Desktop) ---
-function openSheet(id) {
-  $(id).classList.remove('hidden');
-}
-function closeSheet(id) {
-  $(id).classList.add('hidden');
-}
 function openMagic() {
   document.body.classList.add('magic-open');
   $('magic-backdrop').classList.remove('hidden');
@@ -642,58 +558,50 @@ function openEditModal(tx) {
   setTimeout(function () { $('e-amount').focus(); }, 150);
 }
 
-// --- Klick-Delegation (funktioniert auch nach Fragment-Swap) ---
-
-// --- Kategorie-Dropdowns: Optionen je nach Art (Ausgabe/Einnahme/Überweisung) ---
-function syncCategoryOptions(prefix, keepValue) {
-  var typeSel = $(prefix + 'type');
-  var catSel = $(prefix + 'category');
-  if (!typeSel || !catSel) return;
-  var desired = (keepValue === undefined ? catSel.value : keepValue) || '';
-  var isTransfer = typeSel.value === 'transfer';
-  var isIncome = typeSel.value === 'income';
-  if (isTransfer) desired = 'Überweisung';
-  var cats = JSON.parse(catSel.getAttribute(isIncome || isTransfer ? 'data-income-cats' : 'data-expense-cats'));
-  if (isTransfer) cats = ['Überweisung'];
-  catSel.disabled = isTransfer;
-  catSel.innerHTML = '';
-  if (desired && cats.indexOf(desired) === -1) {
-    var extra = document.createElement('option');
-    extra.value = desired;
-    extra.textContent = desired;
-    catSel.appendChild(extra);
-  }
-  cats.forEach(function (c) {
-    var opt = document.createElement('option');
-    opt.value = c;
-    opt.textContent = c;
-    catSel.appendChild(opt);
-  });
-  if (desired) {
-    catSel.value = desired;
-  } else {
-    var fallback = cats.indexOf('Sonstiges') !== -1 ? 'Sonstiges' : (cats[0] || '');
-    if (fallback) catSel.value = fallback;
-  }
-}
-
+// --- Kategorie-Dropdowns initial befüllen (nach Fragment-Swaps erneut) ---
 function syncAllCategoryOptions() {
   ['m-', 'e-'].forEach(function (prefix) {
     syncCategoryOptions(prefix, '');
   });
 }
 
-// Art-Wechsel: Kategorie-Optionen neu befüllen (Ausgabe ↔ Einnahme ↔ Überweisung)
+// Zentrale change-Delegation: Art-Wechsel baut Kategorie-Optionen neu auf,
+// Zahlungsänderung baut Empfängerliste neu auf.
 document.addEventListener('change', function (e) {
-  if (e.target && /^(m|e)-type$/.test(e.target.id)) {
+  if (!e.target) return;
+  if (e.target.id === 's-from') rebuildRecipientOptions();
+  if (/^(m|e)-type$/.test(e.target.id)) {
     var prefix = e.target.id.slice(0, e.target.id.indexOf('type'));
     syncCategoryOptions(prefix, '');
   }
 });
 
-// Initial befüllen (nach Fragment-Swaps ruft refreshDashboard syncAllCategoryOptions erneut auf)
 syncAllCategoryOptions();
 
+// --- Partial Updates: nach Aktionen nur die betroffenen Bereiche tauschen ---
+async function refreshDashboard() {
+  var month = window.__MONTH;
+  if (!month || !$('summary-frag') || !$('tx-frag')) return false;
+  var parts = await Promise.all([
+    fetchFragment('/dashboard/fragments/summary?month=' + month),
+    fetchFragment('/dashboard/fragments/list?month=' + month +
+      '&layout=' + (window.matchMedia('(min-width: 768px)').matches ? 'desktop' : 'mobile')),
+  ]);
+  $('summary-frag').innerHTML = parts[0];
+  $('tx-frag').innerHTML = parts[1];
+  syncAllCategoryOptions();
+  return true;
+}
+
+async function afterMutation() {
+  try {
+    await refreshDashboard();
+  } catch (err) {
+    window.location.reload();
+  }
+}
+
+// --- Klick-Delegation (funktioniert auch nach Fragment-Swap) ---
 document.addEventListener('click', async function (e) {
   var pill = e.target.closest('[data-paid-from]');
   if (pill) {
@@ -737,12 +645,7 @@ document.addEventListener('click', async function (e) {
   if (quick) {
     $('s-amount').value = quick.getAttribute('data-amount');
     $('s-from').value = quick.getAttribute('data-from');
-rebuildRecipientOptions();
-
-// --- Delegation: Zahlungsänderung baut Empfängerliste neu auf ---
-document.addEventListener('change', function (e) {
-  if (e.target && e.target.id === 's-from') rebuildRecipientOptions();
-});
+    rebuildRecipientOptions();
     $('s-to').value = quick.getAttribute('data-to');
     openSheet('settlement-overlay');
     setTimeout(function () { $('s-amount').focus(); }, 150);
@@ -768,13 +671,9 @@ document.addEventListener('change', function (e) {
   }
 });
 
+// Overlays (Escape/Tab) steuert app.js – hier nur das Magic-Sheet schließen
 document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') {
-    closeSheet('settlement-overlay');
-    closeSheet('edit-overlay');
-    closeSheet('recurring-edit-overlay');
-    closeMagic();
-  }
+  if (e.key === 'Escape') closeMagic();
 });
 
 // --- Submit-Delegation für alle Formulare ---
@@ -805,6 +704,7 @@ document.addEventListener('submit', async function (e) {
     e.preventDefault();
     var amount = parseFloat($('m-amount').value);
     if (!amount || amount <= 0) {
+      markInvalid($('m-amount'));
       showToast('Bitte einen gültigen Betrag eingeben', 'error');
       return;
     }
@@ -833,6 +733,7 @@ document.addEventListener('submit', async function (e) {
     e.preventDefault();
     var amount = parseFloat($('s-amount').value);
     if (!amount || amount <= 0) {
+      markInvalid($('s-amount'));
       showToast('Bitte einen gültigen Betrag eingeben', 'error');
       return;
     }
@@ -857,6 +758,7 @@ document.addEventListener('submit', async function (e) {
     if (!EDITING_ID) return;
     var amount = parseFloat($('e-amount').value);
     if (!amount || amount <= 0) {
+      markInvalid($('e-amount'));
       showToast('Bitte einen gültigen Betrag eingeben', 'error');
       return;
     }
@@ -940,34 +842,32 @@ export const DashboardView: FC<DashboardProps> = ({
 
   return (
     <Layout title="Dashboard">
-      <div
-        id="toast"
-        class="fixed bottom-24 left-1/2 z-[60] hidden -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg md:bottom-6"
-      ></div>
-
       <main class="mx-auto max-w-6xl p-4 pb-28 sm:p-8 md:pb-8">
         <header class="mb-8 flex items-center justify-between">
           <div>
-            <h1 class="text-xl font-bold tracking-tight sm:text-2xl">💳 SmartWallet</h1>
+            <h1 class="text-xl font-bold tracking-tight sm:text-2xl">
+              <span aria-hidden="true">💳</span> SmartWallet
+            </h1>
             <p class="hidden text-sm text-slate-500 sm:block">
               Hallo {userName}, hier ist der Überblick für „{householdName}“.
             </p>
           </div>
           <div class="flex items-center gap-3">
-            <nav class="hidden items-center gap-1 text-sm md:flex">
-              <a href="/dashboard" class="rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-white/70">Dashboard</a>
+            <nav class="hidden items-center gap-1 text-sm md:flex" aria-label="Hauptnavigation">
+              <a href="/dashboard" aria-current="page" class="rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-white/70">Dashboard</a>
               <a href={'/stats?month=' + month} class="rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-white/70">Statistik</a>
               <a
                 href="/recurring"
                 title="Wiederkehrende Zahlungen verwalten"
                 class="rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-600 transition hover:bg-indigo-100"
               >
-                🔁 Wiederkehrend ({recurringCount})
+                <span aria-hidden="true">🔁</span> Wiederkehrend ({recurringCount})
               </a>
             </nav>
             <a
               href="/settings"
               title="Einstellungen"
+              aria-label="Einstellungen"
               class="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
             >
               <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
@@ -993,21 +893,23 @@ export const DashboardView: FC<DashboardProps> = ({
 
         <div id="magic-backdrop" data-action="close-magic" class="fixed inset-0 z-40 hidden bg-slate-900/40 md:hidden"></div>
 
-        <section id="magic-section" class="safe-bottom mb-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <section id="magic-section" class="safe-bottom card mb-4">
           <div class="mb-3 flex items-start justify-between gap-3">
             <div>
-              <h2 class="text-sm font-medium text-slate-500">✨ Magic Input</h2>
-              <p class="mt-1 text-xs text-slate-400">
+              <h2 class="text-sm font-medium text-slate-500">
+                <span aria-hidden="true">✨</span> Magic Input
+              </h2>
+              <p class="mt-1 text-xs text-slate-500">
                 Einfach eintippen, was ausgegeben wurde – die KI erkennt Betrag, Kategorie, ob es gemeinsam war und mit welchem Konto bezahlt wurde.
               </p>
             </div>
             <button
               type="button"
               data-action="close-magic"
-              aria-label="Schließen"
+              aria-label="Magic Input schließen"
               class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 md:hidden"
             >
-              ✕
+              <span aria-hidden="true">✕</span>
             </button>
           </div>
           <form id="magic-form" class="flex flex-col gap-2 sm:flex-row">
@@ -1015,19 +917,17 @@ export const DashboardView: FC<DashboardProps> = ({
               id="magic-text"
               type="text"
               maxlength={500}
+              autocomplete="off"
               placeholder='z. B. "Ich war für 45 Euro tanken" oder "Wir waren für 60 Euro essen"'
+              aria-label="Magic Input – Ausgabe in natürlicher Sprache beschreiben"
               class={'flex-1 ' + INPUT_CLASS}
             />
-            <button
-              id="magic-btn"
-              type="submit"
-              class="min-h-[44px] rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-            >
-              ✨ Hinzufügen
+            <button id="magic-btn" type="submit" class="btn-primary">
+              <span aria-hidden="true">✨</span> Hinzufügen
             </button>
           </form>
           <div class="mt-3 flex flex-wrap items-center gap-2">
-            <span class="text-xs text-slate-400">Konto:</span>
+            <span class="text-xs text-slate-500">Konto:</span>
             <button type="button" data-paid-from="auto" class={PILL_ACTIVE}>
               Automatisch (KI)
             </button>
@@ -1043,18 +943,23 @@ export const DashboardView: FC<DashboardProps> = ({
         <div id="settlement-overlay" class="fixed inset-0 z-50 hidden">
           <div class="absolute inset-0 bg-slate-900/40" data-close="settlement-overlay"></div>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settlement-title"
             class="safe-bottom absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[36rem] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
           >
-            <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden"></div>
+            <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" aria-hidden="true"></div>
             <div class="mb-3 flex items-start justify-between">
-              <h2 class="text-sm font-medium text-slate-500">🤝 Ausgleichszahlung</h2>
+              <h2 id="settlement-title" class="text-sm font-medium text-slate-500">
+                <span aria-hidden="true">🤝</span> Ausgleichszahlung
+              </h2>
               <button
                 type="button"
                 data-close="settlement-overlay"
-                aria-label="Schließen"
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                aria-label="Ausgleichszahlung schließen"
+                class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
               >
-                ✕
+                <span aria-hidden="true">✕</span>
               </button>
             </div>
             <form id="settlement-form" class="grid items-end gap-3 sm:grid-cols-4">
@@ -1084,7 +989,7 @@ export const DashboardView: FC<DashboardProps> = ({
                 <label for="s-amount" class="mb-1 block text-xs text-slate-500">Betrag (€)</label>
                 <input id="s-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="z. B. 30" class={INPUT_CLASS} />
               </div>
-              <button type="submit" class="min-h-[44px] rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-900">
+              <button type="submit" class="btn-primary">
                 Ausgleich buchen
               </button>
             </form>
@@ -1094,18 +999,23 @@ export const DashboardView: FC<DashboardProps> = ({
         <div id="edit-overlay" class="fixed inset-0 z-50 hidden">
           <div class="absolute inset-0 bg-slate-900/40" data-close="edit-overlay"></div>
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-title"
             class="safe-bottom absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[42rem] sm:max-w-full sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
           >
-            <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden"></div>
+            <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" aria-hidden="true"></div>
             <div class="mb-3 flex items-start justify-between">
-              <h2 class="text-sm font-medium text-slate-500">✏️ Transaktion bearbeiten</h2>
+              <h2 id="edit-title" class="text-sm font-medium text-slate-500">
+                <span aria-hidden="true">✏️</span> Transaktion bearbeiten
+              </h2>
               <button
                 type="button"
                 data-close="edit-overlay"
-                aria-label="Schließen"
-                class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                aria-label="Bearbeiten abbrechen"
+                class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
               >
-                ✕
+                <span aria-hidden="true">✕</span>
               </button>
             </div>
             <form id="edit-form" class="grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -1115,7 +1025,7 @@ export const DashboardView: FC<DashboardProps> = ({
               </label>
               <label class="block">
                 <span class={LABEL_CLASS}>Beschreibung</span>
-                <input id="e-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+                <input id="e-description" type="text" maxlength={200} placeholder="Beschreibung" autocomplete="off" class={INPUT_CLASS} />
               </label>
               <label class="block">
                 <span class={LABEL_CLASS}>Art</span>
@@ -1145,17 +1055,13 @@ export const DashboardView: FC<DashboardProps> = ({
               </label>
               <label class="block">
                 <span class={LABEL_CLASS}>Datum</span>
-                <input id="e-date" type="date" class={INPUT_CLASS} />
+                <input id="e-date" type="date" autocomplete="off" class={INPUT_CLASS} />
               </label>
               <div class="flex gap-2 sm:col-span-3 lg:col-span-4">
-                <button type="submit" class="min-h-[44px] rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+                <button type="submit" class="btn-primary">
                   Änderungen speichern
                 </button>
-                <button
-                  type="button"
-                  data-close="edit-overlay"
-                  class="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                >
+                <button type="button" data-close="edit-overlay" class="btn-secondary">
                   Abbrechen
                 </button>
               </div>
@@ -1169,34 +1075,17 @@ export const DashboardView: FC<DashboardProps> = ({
 
       </main>
 
-      {/* Mobile Bottom-Navigation */}
-      <nav
-        class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden"
-        style="padding-bottom: env(safe-area-inset-bottom)"
-      >
-        <div class="grid grid-cols-4">
-          <a href="/dashboard" class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-indigo-600">
-            <span class="text-lg leading-none">🏠</span>
-            Dashboard
-          </a>
-          <a href={'/stats?month=' + month} class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600">
-            <span class="text-lg leading-none">📊</span>
-            Statistik
-          </a>
-          <a href="/recurring" class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600">
-            <span class="text-lg leading-none">🔁</span>
-            Wiederkehrend
-          </a>
-          <button
-            type="button"
-            data-action="open-magic"
-            class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600"
-          >
-            <span class="text-lg leading-none">✨</span>
-            Hinzufügen
-          </button>
-        </div>
-      </nav>
+      {/* Mobile Bottom-Navigation – Aktion „Hinzufügen“ öffnet das Magic-Sheet */}
+      <BottomNav page="dashboard" month={month}>
+        <button
+          type="button"
+          data-action="open-magic"
+          class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50"
+        >
+          <span class="text-lg leading-none" aria-hidden="true">✨</span>
+          Hinzufügen
+        </button>
+      </BottomNav>
 
       <script dangerouslySetInnerHTML={{ __html: 'window.__MONTH = "' + month + '";' }} />
       <script dangerouslySetInnerHTML={{ __html: script }} />

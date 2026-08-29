@@ -24,10 +24,17 @@ export const Layout: FC<LayoutProps> = ({ title, children }) => (
       <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       <meta name="apple-mobile-web-app-title" content="SmartWallet" />
       <link rel="stylesheet" href="/assets/app.css" />
-      <style>{`body { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }`}</style>
+      <script src="/assets/app.js"></script>
     </head>
     <body class="min-h-screen bg-gradient-to-br from-slate-100 via-indigo-50 to-slate-100 text-slate-800 antialiased">
       {children}
+      {/* Globale Toast-Benachrichtigung (Client-JS steuert Sichtbarkeit, Farbe und role) */}
+      <div
+        id="toast"
+        role="status"
+        aria-live="polite"
+        class="fixed bottom-24 left-1/2 z-[60] hidden -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg md:bottom-6"
+      ></div>
       <script dangerouslySetInnerHTML={{ __html: swScript }} />
     </body>
   </html>

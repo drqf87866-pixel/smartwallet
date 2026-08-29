@@ -1,5 +1,7 @@
 import type { FC } from 'hono/jsx';
 import { Layout } from './layout';
+import { INPUT_CLASS } from './shared';
+import { fmt } from '../lib/format';
 
 export type MemberInfo = { id: number; name: string; monthly_contribution: number };
 
@@ -13,39 +15,7 @@ type SettingsProps = {
   startBalance: number;
 };
 
-const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-const fmt = (n: number) => eur.format(n);
-
-const INPUT_CLASS =
-  'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-
 const script = `
-function showToast(message, kind) {
-  var toast = document.getElementById('toast');
-  toast.textContent = message;
-  toast.style.background = kind === 'ok' ? '#059669' : kind === 'info' ? '#d97706' : '#dc2626';
-  toast.classList.remove('hidden');
-  clearTimeout(window.__toastTimer);
-  window.__toastTimer = setTimeout(function () { toast.classList.add('hidden'); }, 4000);
-}
-
-async function postJson(url, body, method) {
-  var res = await fetch(url, {
-    method: method || 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Sitzung abgelaufen');
-  }
-  var data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    throw new Error(data.error || 'Unbekannter Fehler');
-  }
-  return data;
-}
-
 document.getElementById('logout-btn').addEventListener('click', async function () {
   await fetch('/api/logout', { method: 'POST' });
   window.location.href = '/login';
@@ -62,8 +32,10 @@ document.getElementById('copy-invite').addEventListener('click', function () {
 
 document.getElementById('contribution-form').addEventListener('submit', async function (e) {
   e.preventDefault();
-  var amount = parseFloat(document.getElementById('contribution-amount').value.replace(',', '.'));
+  var input = document.getElementById('contribution-amount');
+  var amount = parseFloat(input.value.replace(',', '.'));
   if (isNaN(amount) || amount < 0) {
+    markInvalid(input);
     showToast('Bitte einen gültigen Betrag eingeben', 'error');
     return;
   }
@@ -77,8 +49,10 @@ document.getElementById('contribution-form').addEventListener('submit', async fu
 
 document.getElementById('settings-form').addEventListener('submit', async function (e) {
   e.preventDefault();
-  var start = parseFloat(document.getElementById('set-start').value.replace(',', '.'));
+  var input = document.getElementById('set-start');
+  var start = parseFloat(input.value.replace(',', '.'));
   if (isNaN(start) || start < 0) {
+    markInvalid(input);
     showToast('Bitte einen gültigen Startstand eingeben', 'error');
     return;
   }
@@ -94,10 +68,12 @@ document.getElementById('password-form').addEventListener('submit', async functi
   e.preventDefault();
   var next = document.getElementById('pw-new').value;
   if (next.length < 8) {
+    markInvalid(document.getElementById('pw-new'));
     showToast('Das neue Passwort muss mindestens 8 Zeichen haben', 'error');
     return;
   }
   if (next !== document.getElementById('pw-confirm').value) {
+    markInvalid(document.getElementById('pw-confirm'));
     showToast('Die neuen Passwörter stimmen nicht überein', 'error');
     return;
   }
@@ -114,8 +90,6 @@ document.getElementById('password-form').addEventListener('submit', async functi
 });
 `;
 
-const SECTION_CLASS = 'rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200';
-
 export const SettingsView: FC<SettingsProps> = ({
   userName,
   userEmail,
@@ -126,19 +100,14 @@ export const SettingsView: FC<SettingsProps> = ({
   startBalance,
 }) => (
   <Layout title="Einstellungen">
-    <div
-      id="toast"
-      class="fixed bottom-6 left-1/2 z-50 hidden -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg"
-    ></div>
-
-    <main class="mx-auto max-w-2xl p-4 sm:p-8">
+    <main class="mx-auto max-w-2xl p-4 pb-28 sm:p-8 md:pb-8">
       <header class="mb-8 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <a
             href="/dashboard"
             class="flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
           >
-            ← Dashboard
+            <span aria-hidden="true">←</span> Dashboard
           </a>
         </div>
         <button
@@ -159,21 +128,23 @@ export const SettingsView: FC<SettingsProps> = ({
         </div>
       </div>
 
-      <section class={`${SECTION_CLASS} mb-4`}>
-        <h2 class="text-sm font-medium text-slate-500">👥 Haushalt „{householdName}“</h2>
+      <section class="card mb-4">
+        <h2 class="text-sm font-medium text-slate-500">
+          <span aria-hidden="true">👥</span> Haushalt „{householdName}“
+        </h2>
         <ul class="mt-3 space-y-1.5 text-sm">
           {members.map((m) => (
             <li class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
               <span class="text-slate-700">
                 {m.name}
-                {m.name === userName ? <span class="text-slate-400"> (du)</span> : null}
+                {m.name === userName ? <span class="text-slate-500"> (du)</span> : null}
               </span>
-              <span class="text-xs text-slate-500">Beitrag: {fmt(m.monthly_contribution)}</span>
+              <span class="text-xs tabular-nums text-slate-500">Beitrag: {fmt(m.monthly_contribution)}</span>
             </li>
           ))}
         </ul>
         <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-          <span class="text-xs text-slate-400">Einladungscode:</span>
+          <span class="text-xs text-slate-500">Einladungscode:</span>
           <code
             id="invite-code"
             class="rounded-lg bg-slate-100 px-3 py-1.5 font-mono text-sm font-bold tracking-widest text-slate-700"
@@ -183,22 +154,24 @@ export const SettingsView: FC<SettingsProps> = ({
           <button
             id="copy-invite"
             type="button"
-            class="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+            class="flex min-h-[36px] items-center rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
           >
-            📋 Kopieren
+            <span aria-hidden="true">📋</span> Kopieren
           </button>
           <a
             href={'/register?code=' + inviteCode}
-            class="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
+            class="flex min-h-[36px] items-center rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
           >
             Link zum Einladen
           </a>
         </div>
       </section>
 
-      <section class={`${SECTION_CLASS} mb-4`}>
-        <h2 class="text-sm font-medium text-slate-500">💰 Mein Monatsbeitrag</h2>
-        <p class="mt-1 text-xs text-slate-400">
+      <section class="card mb-4">
+        <h2 class="text-sm font-medium text-slate-500">
+          <span aria-hidden="true">💰</span> Mein Monatsbeitrag
+        </h2>
+        <p class="mt-1 text-xs text-slate-500">
           Wird per Klick auf „Beitrag buchen“ vom Privatkonto aufs Gemeinschaftskonto überwiesen.
           Jedes Mitglied setzt seinen eigenen Betrag.
         </p>
@@ -214,20 +187,20 @@ export const SettingsView: FC<SettingsProps> = ({
               step="0.01"
               min="0"
               value={myContribution}
+              autocomplete="off"
               class={INPUT_CLASS}
             />
           </div>
-          <button
-            type="submit"
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-          >
+          <button type="submit" class="btn-primary">
             Speichern
           </button>
         </form>
       </section>
 
-      <section class={`${SECTION_CLASS} mb-4`}>
-        <h2 class="text-sm font-medium text-slate-500">🏦 Gemeinschaftskonto</h2>
+      <section class="card mb-4">
+        <h2 class="text-sm font-medium text-slate-500">
+          <span aria-hidden="true">🏦</span> Gemeinschaftskonto
+        </h2>
         <form id="settings-form" class="mt-3 flex items-end gap-3">
           <div class="flex-1">
             <label for="set-start" class="mb-1 block text-xs text-slate-500">
@@ -240,20 +213,20 @@ export const SettingsView: FC<SettingsProps> = ({
               step="0.01"
               min="0"
               value={startBalance}
+              autocomplete="off"
               class={INPUT_CLASS}
             />
           </div>
-          <button
-            type="submit"
-            class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-          >
+          <button type="submit" class="btn-primary">
             Speichern
           </button>
         </form>
       </section>
 
-      <section class={SECTION_CLASS}>
-        <h2 class="text-sm font-medium text-slate-500">🔒 Passwort ändern</h2>
+      <section class="card">
+        <h2 class="text-sm font-medium text-slate-500">
+          <span aria-hidden="true">🔒</span> Passwort ändern
+        </h2>
         <form id="password-form" class="mt-3 grid gap-3 sm:grid-cols-3">
           <div>
             <label for="pw-current" class="mb-1 block text-xs text-slate-500">
@@ -273,10 +246,7 @@ export const SettingsView: FC<SettingsProps> = ({
             </label>
             <input id="pw-confirm" type="password" required minlength={8} autocomplete="new-password" class={INPUT_CLASS} />
           </div>
-          <button
-            type="submit"
-            class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-900 sm:col-span-3"
-          >
+          <button type="submit" class="btn-primary sm:col-span-3">
             Passwort ändern
           </button>
         </form>

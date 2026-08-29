@@ -50,7 +50,7 @@ export const LoginView: FC = () => (
           novalidate
           class="space-y-4 rounded-2xl bg-white p-6 shadow-xl shadow-indigo-100"
         >
-          <div id="login-error" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600"></div>
+          <div id="login-error" role="alert" class="hidden rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600"></div>
           <div>
             <label for="email" class="mb-1 block text-sm font-medium text-slate-700">E-Mail</label>
             <input
@@ -60,7 +60,7 @@ export const LoginView: FC = () => (
               required
               autocomplete="email"
               placeholder="anna@smartwallet.app"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              class="input"
             />
           </div>
           <div>
@@ -72,7 +72,7 @@ export const LoginView: FC = () => (
               required
               autocomplete="current-password"
               placeholder="••••••••"
-              class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              class="input"
             />
           </div>
           <button
@@ -90,7 +90,7 @@ export const LoginView: FC = () => (
             Jetzt registrieren
           </a>
         </p>
-        <p class="mt-2 text-center text-xs text-slate-400">
+        <p class="mt-2 text-center text-xs text-slate-500">
           Demo-Zugänge (lokal nach Seed): anna@smartwallet.app oder ben@smartwallet.app · Passwort: demo1234
         </p>
       </div>

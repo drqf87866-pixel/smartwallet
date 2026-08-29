@@ -1,8 +1,9 @@
 import type { FC } from 'hono/jsx';
 import { frequencyLabel } from '../lib/recurring';
 import type { TransactionAccount, TransactionScope } from '../types';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
 import { Layout } from './layout';
+import { BottomNav, CategorySelect, INPUT_CLASS, LABEL_CLASS } from './shared';
+import { fmt, fmtDate } from '../lib/format';
 
 /** Regel inkl. berechnetem nächsten Fälligkeitsdatum (null = inaktiv/keine mehr). */
 export type RecurringRuleView = {
@@ -22,26 +23,6 @@ export type RecurringRuleView = {
   next_due: string | null;
 };
 
-const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-const fmt = (n: number) => eur.format(n);
-const dateFmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
-const fmtDate = (dateOnly: string) => dateFmt.format(new Date(dateOnly + 'T12:00:00Z'));
-
-const INPUT_CLASS =
-  'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
-
-const LABEL_CLASS = 'mb-1 block text-xs text-slate-500';
-
-/** Kategorie-Dropdown – Optionen werden per JS je nach Art (Ausgabe/Einnahme) befüllt. */
-const CategorySelect: FC<{ id: string }> = ({ id }) => (
-  <select
-    id={id}
-    class={INPUT_CLASS}
-    data-expense-cats={JSON.stringify(EXPENSE_CATEGORIES)}
-    data-income-cats={JSON.stringify(INCOME_CATEGORIES)}
-  />
-);
-
 const FREQUENCY_OPTIONS = [
   { value: 'monthly', label: 'Monatlich' },
   { value: 'weekly', label: 'Wöchentlich' },
@@ -52,7 +33,7 @@ const FREQUENCY_OPTIONS = [
 export const RecurringList: FC<{ rules: RecurringRuleView[] }> = ({ rules }) => {
   if (rules.length === 0) {
     return (
-      <p class="py-2 text-sm text-slate-400">
+      <p class="py-2 text-sm text-slate-500">
         Noch keine Regeln – lege z. B. Miete, Abos oder Gehalt unten an und sie werden automatisch gebucht.
       </p>
     );
@@ -68,13 +49,13 @@ export const RecurringList: FC<{ rules: RecurringRuleView[] }> = ({ rules }) => 
                 <span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">pausiert</span>
               )}
             </p>
-            <p class="mt-0.5 text-xs text-slate-400">
+            <p class="mt-0.5 text-xs text-slate-500">
               {frequencyLabel(rule)} · {rule.category}
               {rule.next_due ? <> · fällig am {fmtDate(rule.next_due)}</> : null}
             </p>
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
-            <span class={'whitespace-nowrap text-sm font-semibold ' + (rule.type === 'income' ? 'text-emerald-600' : 'text-red-500')}>
+            <span class={'whitespace-nowrap text-sm font-semibold tabular-nums ' + (rule.type === 'income' ? 'text-emerald-700' : 'text-red-600')}>
               {rule.type === 'income' ? '+' : '−'}
               {fmt(rule.amount)}
             </span>
@@ -84,9 +65,10 @@ export const RecurringList: FC<{ rules: RecurringRuleView[] }> = ({ rules }) => 
                 data-rec-book={rule.id}
                 data-due-label={fmtDate(rule.next_due)}
                 title="Nächste Fälligkeit jetzt buchen"
-                class="flex h-8 w-8 items-center justify-center rounded border border-emerald-200 bg-emerald-50 text-sm text-emerald-600 hover:bg-emerald-100"
+                aria-label="Nächste Fälligkeit jetzt buchen"
+                class="flex h-9 w-9 items-center justify-center rounded border border-emerald-200 bg-emerald-50 text-sm text-emerald-600 hover:bg-emerald-100"
               >
-                ⚡
+                <span aria-hidden="true">⚡</span>
               </button>
             ) : null}
             <button
@@ -94,25 +76,28 @@ export const RecurringList: FC<{ rules: RecurringRuleView[] }> = ({ rules }) => 
               data-rec-toggle={rule.id}
               data-active={rule.active ? '1' : '0'}
               title={rule.active ? 'Pausieren' : 'Aktivieren'}
-              class="flex h-8 w-8 items-center justify-center rounded border border-amber-200 bg-amber-50 text-sm text-amber-600 hover:bg-amber-100"
+              aria-label={rule.active ? 'Regel pausieren' : 'Regel aktivieren'}
+              class="flex h-9 w-9 items-center justify-center rounded border border-amber-200 bg-amber-50 text-sm text-amber-600 hover:bg-amber-100"
             >
-              {rule.active ? '⏸' : '▶'}
+              <span aria-hidden="true">{rule.active ? '⏸' : '▶'}</span>
             </button>
             <button
               type="button"
               data-rec-edit={JSON.stringify(rule)}
               title="Bearbeiten"
-              class="flex h-8 w-8 items-center justify-center rounded border border-indigo-200 bg-indigo-50 text-sm text-indigo-600 hover:bg-indigo-100"
+              aria-label="Regel bearbeiten"
+              class="flex h-9 w-9 items-center justify-center rounded border border-indigo-200 bg-indigo-50 text-sm text-indigo-600 hover:bg-indigo-100"
             >
-              ✏️
+              <span aria-hidden="true">✏️</span>
             </button>
             <button
               type="button"
               data-rec-delete={rule.id}
               title="Regel löschen"
-              class="flex h-8 w-8 items-center justify-center rounded border border-red-200 bg-red-50 text-sm text-red-600 hover:bg-red-100"
+              aria-label="Regel löschen"
+              class="flex h-9 w-9 items-center justify-center rounded border border-red-200 bg-red-50 text-sm text-red-600 hover:bg-red-100"
             >
-              🗑
+              <span aria-hidden="true">🗑</span>
             </button>
           </div>
         </li>
@@ -126,21 +111,26 @@ const RecurringEditOverlay: FC = () => (
   <div id="recurring-edit-overlay" class="fixed inset-0 z-50 hidden">
     <div class="absolute inset-0 bg-slate-900/40" data-close="recurring-edit-overlay"></div>
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="recurring-edit-title"
       class="safe-bottom absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[42rem] sm:max-w-full sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
     >
-      <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden"></div>
+      <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" aria-hidden="true"></div>
       <div class="mb-3 flex items-start justify-between">
         <div>
-          <h2 class="text-sm font-medium text-slate-500">🔁 Wiederkehrende Zahlung bearbeiten</h2>
-          <p class="mt-1 text-xs text-slate-400">Änderungen wirken ab jetzt – bereits erzeugte Buchungen bleiben unverändert.</p>
+          <h2 id="recurring-edit-title" class="text-sm font-medium text-slate-500">
+            <span aria-hidden="true">🔁</span> Wiederkehrende Zahlung bearbeiten
+          </h2>
+          <p class="mt-1 text-xs text-slate-500">Änderungen wirken ab jetzt – bereits erzeugte Buchungen bleiben unverändert.</p>
         </div>
         <button
           type="button"
           data-close="recurring-edit-overlay"
-          aria-label="Schließen"
-          class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+          aria-label="Bearbeiten abbrechen"
+          class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
         >
-          ✕
+          <span aria-hidden="true">✕</span>
         </button>
       </div>
       <form id="recurring-edit-form" class="grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -175,7 +165,7 @@ const RecurringEditOverlay: FC = () => (
         </label>
         <label class="block">
           <span class={LABEL_CLASS}>Beschreibung</span>
-          <input id="re-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+          <input id="re-description" type="text" maxlength={200} placeholder="Beschreibung" autocomplete="off" class={INPUT_CLASS} />
         </label>
         <label class="block">
           <span class={LABEL_CLASS}>Rhythmus</span>
@@ -187,17 +177,13 @@ const RecurringEditOverlay: FC = () => (
         </label>
         <label class="block">
           <span class={LABEL_CLASS}>Fällig am</span>
-          <input id="re-due" type="date" required class={INPUT_CLASS} />
+          <input id="re-due" type="date" required autocomplete="off" class={INPUT_CLASS} />
         </label>
         <div class="flex gap-2 sm:col-span-3 lg:col-span-4">
-          <button type="submit" class="min-h-[44px] rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+          <button type="submit" class="btn-primary">
             Änderungen speichern
           </button>
-          <button
-            type="button"
-            data-close="recurring-edit-overlay"
-            class="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-          >
+          <button type="button" data-close="recurring-edit-overlay" class="btn-secondary">
             Abbrechen
           </button>
         </div>
@@ -216,54 +202,22 @@ export type RecurringViewProps = {
 /** Eigene Seite „Wiederkehrende Zahlungen“ (inkl. Anlegen-Formular + Edit-Overlay). */
 export const RecurringView: FC<RecurringViewProps> = ({ userName, householdName, rules, today }) => {
   const script = `
-var MAGIC_PAID_FROM = 'auto';
-
-function $(id) { return document.getElementById(id); }
-
-function showToast(message, kind) {
-  var toast = $('toast');
-  toast.textContent = message;
-  toast.style.background = kind === 'ok' ? '#059669' : kind === 'info' ? '#d97706' : '#dc2626';
-  toast.classList.remove('hidden');
-  clearTimeout(window.__toastTimer);
-  window.__toastTimer = setTimeout(function () { toast.classList.add('hidden'); }, 4000);
-}
-
-function busy(btn, text) {
-  if (!btn) return function () {};
-  var orig = btn.textContent;
-  btn.disabled = true;
-  if (text) btn.textContent = text;
-  return function () { btn.disabled = false; btn.textContent = orig; };
-}
-
-async function postJson(url, body, method) {
-  var res = await fetch(url, {
-    method: method || 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+// --- Kategorie-Dropdowns initial befüllen (nach Fragment-Swaps erneut) ---
+function syncAllCategoryOptions() {
+  ['r-', 're-'].forEach(function (prefix) {
+    syncCategoryOptions(prefix, '');
   });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Sitzung abgelaufen');
-  }
-  var data = await res.json().catch(function () { return {}; });
-  if (!res.ok) {
-    throw new Error(data.error || 'Unbekannter Fehler');
-  }
-  return data;
 }
 
-// Partial Updates: nach Aktionen nur die Regel-Liste tauschen
-async function fetchFragment(url) {
-  var res = await fetch(url, { headers: { 'X-Fragments': '1' } });
-  if (res.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Sitzung abgelaufen');
+// Art-Wechsel: Kategorie-Optionen neu befüllen (Ausgabe ↔ Einnahme)
+document.addEventListener('change', function (e) {
+  if (e.target && /^(r|re)-type$/.test(e.target.id)) {
+    var prefix = e.target.id.slice(0, e.target.id.indexOf('type'));
+    syncCategoryOptions(prefix, '');
   }
-  if (!res.ok) throw new Error('Aktualisierung fehlgeschlagen');
-  return res.text();
-}
+});
+
+syncAllCategoryOptions();
 
 async function refreshRecurring() {
   if (!$('recurring-frag')) return false;
@@ -280,49 +234,6 @@ async function afterMutation() {
   }
 }
 
-// --- Sheets: unten (mobil) bzw. mittig (Desktop) ---
-function openSheet(id) {
-  $(id).classList.remove('hidden');
-}
-function closeSheet(id) {
-  $(id).classList.add('hidden');
-}
-
-// --- Kategorie-Dropdowns: Optionen je nach Art (Ausgabe/Einnahme) ---
-function syncCategoryOptions(prefix, keepValue) {
-  var typeSel = $(prefix + 'type');
-  var catSel = $(prefix + 'category');
-  if (!typeSel || !catSel) return;
-  var desired = (keepValue === undefined ? catSel.value : keepValue) || '';
-  var isIncome = typeSel.value === 'income';
-  var cats = JSON.parse(catSel.getAttribute(isIncome ? 'data-income-cats' : 'data-expense-cats'));
-  catSel.innerHTML = '';
-  if (desired && cats.indexOf(desired) === -1) {
-    var extra = document.createElement('option');
-    extra.value = desired;
-    extra.textContent = desired;
-    catSel.appendChild(extra);
-  }
-  cats.forEach(function (c) {
-    var opt = document.createElement('option');
-    opt.value = c;
-    opt.textContent = c;
-    catSel.appendChild(opt);
-  });
-  if (desired) {
-    catSel.value = desired;
-  } else {
-    var fallback = cats.indexOf('Sonstiges') !== -1 ? 'Sonstiges' : (cats[0] || '');
-    if (fallback) catSel.value = fallback;
-  }
-}
-
-function syncAllCategoryOptions() {
-  ['r-', 're-'].forEach(function (prefix) {
-    syncCategoryOptions(prefix, '');
-  });
-}
-
 // Wiederkehrende Zahlung bearbeiten: Regel ins Overlay-Formular füllen
 var REC_EDITING_ID = null;
 
@@ -336,17 +247,6 @@ function fillRecurringForm(prefix, rule) {
   $(prefix + 'frequency').value = rule.frequency;
   $(prefix + 'due').value = rule.start_date;
 }
-
-// Art-Wechsel: Kategorie-Optionen neu befüllen (Ausgabe ↔ Einnahme)
-document.addEventListener('change', function (e) {
-  if (e.target && /^(r|re)-type$/.test(e.target.id)) {
-    var prefix = e.target.id.slice(0, e.target.id.indexOf('type'));
-    syncCategoryOptions(prefix, '');
-  }
-});
-
-// Initial befüllen (nach Fragment-Swaps ruft refreshRecurring syncAllCategoryOptions erneut auf)
-syncAllCategoryOptions();
 
 document.addEventListener('click', async function (e) {
   var closer = e.target.closest('[data-close]');
@@ -416,6 +316,7 @@ document.addEventListener('submit', async function (e) {
     e.preventDefault();
     var rAmount = parseFloat($('r-amount').value);
     if (!rAmount || rAmount <= 0) {
+      markInvalid($('r-amount'));
       showToast('Bitte einen gültigen Betrag eingeben', 'error');
       return;
     }
@@ -447,6 +348,7 @@ document.addEventListener('submit', async function (e) {
     if (!REC_EDITING_ID) return;
     var reAmount = parseFloat($('re-amount').value);
     if (!reAmount || reAmount <= 0) {
+      markInvalid($('re-amount'));
       showToast('Bitte einen gültigen Betrag eingeben', 'error');
       return;
     }
@@ -477,15 +379,12 @@ document.addEventListener('submit', async function (e) {
 
   return (
     <Layout title="Wiederkehrende Zahlungen">
-      <div
-        id="toast"
-        class="fixed bottom-24 left-1/2 z-[60] hidden -translate-x-1/2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg md:bottom-6"
-      ></div>
-
       <main class="mx-auto max-w-6xl p-4 pb-28 sm:p-8 md:pb-8">
         <header class="mb-8 flex items-center justify-between">
           <div>
-            <h1 class="text-xl font-bold tracking-tight sm:text-2xl">🔁 Wiederkehrende Zahlungen</h1>
+            <h1 class="text-xl font-bold tracking-tight sm:text-2xl">
+              <span aria-hidden="true">🔁</span> Wiederkehrende Zahlungen
+            </h1>
             <p class="hidden text-sm text-slate-500 sm:block">
               Hallo {userName}, hier sind die Regeln für „{householdName}“ – sie werden automatisch zum Fälligkeitsdatum gebucht.
             </p>
@@ -493,6 +392,7 @@ document.addEventListener('submit', async function (e) {
           <a
             href="/dashboard"
             title="Zurück zum Dashboard"
+            aria-label="Zurück zum Dashboard"
             class="flex items-center gap-2 rounded-full bg-white py-1 pl-3 pr-1 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
           >
             <span class="hidden text-sm font-medium text-slate-700 sm:inline">Dashboard</span>
@@ -502,14 +402,14 @@ document.addEventListener('submit', async function (e) {
           </a>
         </header>
 
-        <section class="mb-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <section class="card mb-4">
           <div id="recurring-frag">
             <RecurringList rules={rules} />
           </div>
 
           <details class="mt-3 border-t border-slate-100 pt-2">
-            <summary class="min-h-[40px] cursor-pointer select-none py-2 text-sm font-medium text-indigo-600">
-              ➕ Wiederkehrende Zahlung anlegen
+            <summary class="min-h-[44px] cursor-pointer select-none py-2 text-sm font-medium text-indigo-600">
+              <span aria-hidden="true">➕</span> Wiederkehrende Zahlung anlegen
             </summary>
             <form id="recurring-form" class="mt-2 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
               <label class="block">
@@ -543,7 +443,7 @@ document.addEventListener('submit', async function (e) {
               </label>
               <label class="block">
                 <span class={LABEL_CLASS}>Beschreibung</span>
-                <input id="r-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+                <input id="r-description" type="text" maxlength={200} placeholder="Beschreibung" autocomplete="off" class={INPUT_CLASS} />
               </label>
               <label class="block">
                 <span class={LABEL_CLASS}>Rhythmus</span>
@@ -555,12 +455,9 @@ document.addEventListener('submit', async function (e) {
               </label>
               <label class="block">
                 <span class={LABEL_CLASS}>Fällig am</span>
-                <input id="r-due" type="date" value={today} required class={INPUT_CLASS} />
+                <input id="r-due" type="date" value={today} required autocomplete="off" class={INPUT_CLASS} />
               </label>
-              <button
-                type="submit"
-                class="min-h-[44px] self-end rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-900 sm:col-span-3 lg:col-span-4"
-              >
+              <button type="submit" class="btn-primary self-end sm:col-span-3 lg:col-span-4">
                 Regel speichern
               </button>
             </form>
@@ -570,26 +467,7 @@ document.addEventListener('submit', async function (e) {
         <RecurringEditOverlay />
       </main>
 
-      {/* Mobile Bottom-Navigation */}
-      <nav
-        class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden"
-        style="padding-bottom: env(safe-area-inset-bottom)"
-      >
-        <div class="grid grid-cols-3">
-          <a href="/dashboard" class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-indigo-600">
-            <span class="text-lg leading-none">🏠</span>
-            Dashboard
-          </a>
-          <a href="/stats" class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600">
-            <span class="text-lg leading-none">📊</span>
-            Statistik
-          </a>
-          <span class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600">
-            <span class="text-lg leading-none">🔁</span>
-            Wiederkehrend
-          </span>
-        </div>
-      </nav>
+      <BottomNav page="recurring" />
 
       <script dangerouslySetInnerHTML={{ __html: script }} />
     </Layout>
