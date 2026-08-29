@@ -24,7 +24,7 @@ export const Layout: FC<LayoutProps> = ({ title, children }) => (
       <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       <meta name="apple-mobile-web-app-title" content="SmartWallet" />
       <link rel="stylesheet" href="/assets/app.css" />
-      <script src="/assets/app.js"></script>
+      <script src="/assets/app.js" defer></script>
     </head>
     <body class="min-h-screen bg-gradient-to-br from-slate-100 via-indigo-50 to-slate-100 text-slate-800 antialiased">
       {children}

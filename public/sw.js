@@ -36,7 +36,26 @@ self.addEventListener('fetch', function (event) {
   if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (url.pathname === '/sw.js' || url.pathname === '/manifest.webmanifest') return;
 
-  // Statische Assets: stale-while-revalidate.
+  // JS-Assets: network-first – die Inline-Scripts der Seiten hängen von den
+  // Globals in app.js ab, daher darf app.js nie älter als das frisch
+  // ausgelieferte HTML sein. Offline-Fallback: letzter Cache-Stand.
+  if (/^\/assets\/.+\.js$/.test(url.pathname)) {
+    event.respondWith(
+      fetch(event.request).then(function (response) {
+        if (response.ok) {
+          caches.open(ASSET_CACHE).then(function (cache) {
+            cache.put(event.request, response.clone());
+          });
+        }
+        return response;
+      }).catch(function () {
+        return caches.match(event.request);
+      }),
+    );
+    return;
+  }
+
+  // Statische Assets (CSS, Icons, offline.html): stale-while-revalidate.
   // Cached Antwort sofort, aktualisiert den Cache im Hintergrund – CSS-/Icon-
   // Änderungen erreichen Nutzer damit spätestens nach dem nächsten Reload
   // (app.css liegt unter konstanter URL, daher kein cache-first möglich).

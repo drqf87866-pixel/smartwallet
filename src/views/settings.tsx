@@ -16,6 +16,9 @@ type SettingsProps = {
 };
 
 const script = `
+// app.js wird mit defer geladen; Init-Logik daher in die __swInit-Queue
+window.__swInit = window.__swInit || [];
+window.__swInit.push(function () {
 document.getElementById('logout-btn').addEventListener('click', async function () {
   await fetch('/api/logout', { method: 'POST' });
   window.location.href = '/login';
@@ -87,6 +90,7 @@ document.getElementById('password-form').addEventListener('submit', async functi
   } catch (err) {
     showToast(err.message, 'error');
   }
+});
 });
 `;
 

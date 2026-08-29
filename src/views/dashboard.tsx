@@ -1,7 +1,7 @@
 import type { FC } from 'hono/jsx';
 import type { TransactionAccount, TransactionScope, TransactionType } from '../types';
 import { Layout } from './layout';
-import { BottomNav, CategorySelect, INPUT_CLASS, LABEL_CLASS } from './shared';
+import { BottomNav, CategorySelect, INPUT_CLASS, LABEL_CLASS, MagicSheet, UserChip } from './shared';
 import { fmt, fmtDay, fmtTime } from '../lib/format';
 
 export type DashboardTx = {
@@ -505,22 +505,10 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
 /* (geteilte Helfer: /assets/app.js)                                   */
 /* ------------------------------------------------------------------ */
 
-const PILL_ACTIVE = 'rounded-full px-3 py-2 text-xs font-medium bg-indigo-600 text-white';
-const PILL_IDLE = 'rounded-full px-3 py-2 text-xs font-medium bg-slate-100 text-slate-500 hover:bg-slate-200';
-
 const script = `
-var MAGIC_PAID_FROM = 'auto';
-
-function openMagic() {
-  document.body.classList.add('magic-open');
-  $('magic-backdrop').classList.remove('hidden');
-  setTimeout(function () { $('magic-text').focus(); }, 150);
-}
-function closeMagic() {
-  document.body.classList.remove('magic-open');
-  $('magic-backdrop').classList.add('hidden');
-}
-
+// app.js wird mit defer geladen; Init-Logik daher in die __swInit-Queue
+window.__swInit = window.__swInit || [];
+window.__swInit.push(function () {
 // --- Ausgleichsformular: Empfänger-Auswahl ohne den Zahlenden ---
 function rebuildRecipientOptions() {
   var from = $('s-from').value;
@@ -593,33 +581,16 @@ async function refreshDashboard() {
   return true;
 }
 
-async function afterMutation() {
-  try {
-    await refreshDashboard();
-  } catch (err) {
-    window.location.reload();
-  }
-}
+// Magic-Sheet (shared.tsx) nutzt denselben Refresh-Pfad ohne Reload
+window.__afterMutation = function () {
+  return afterMutation(refreshDashboard);
+};
 
 // --- Klick-Delegation (funktioniert auch nach Fragment-Swap) ---
 document.addEventListener('click', async function (e) {
-  var pill = e.target.closest('[data-paid-from]');
-  if (pill) {
-    MAGIC_PAID_FROM = pill.getAttribute('data-paid-from');
-    document.querySelectorAll('[data-paid-from]').forEach(function (p) {
-      var active = p === pill;
-      p.className = active
-        ? ${JSON.stringify(PILL_ACTIVE)}
-        : ${JSON.stringify(PILL_IDLE)};
-    });
-    return;
-  }
-
   var action = e.target.closest('[data-action]');
   if (action) {
     var name = action.getAttribute('data-action');
-    if (name === 'open-magic') { openMagic(); return; }
-    if (name === 'close-magic') { closeMagic(); return; }
     if (name === 'open-settle') {
       openSheet('settlement-overlay');
       setTimeout(function () { $('s-amount').focus(); }, 150);
@@ -629,7 +600,7 @@ document.addEventListener('click', async function (e) {
       var unbusy = busy(action);
       try {
         await postJson('/api/contribution', {});
-        await afterMutation();
+        await afterMutation(refreshDashboard);
       } catch (err) {
         showToast(err.message, 'info');
         unbusy();
@@ -663,17 +634,12 @@ document.addEventListener('click', async function (e) {
     if (!confirm('Diese Transaktion wirklich löschen?')) return;
     try {
       await postJson('/api/transactions/' + delBtn.getAttribute('data-delete'), {}, 'DELETE');
-      await afterMutation();
+      await afterMutation(refreshDashboard);
     } catch (err) {
       showToast(err.message, 'error');
     }
     return;
   }
-});
-
-// Overlays (Escape/Tab) steuert app.js – hier nur das Magic-Sheet schließen
-document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') closeMagic();
 });
 
 // --- Submit-Delegation für alle Formulare ---
@@ -681,33 +647,10 @@ document.addEventListener('submit', async function (e) {
   var form = e.target;
   var btn = form.querySelector('button[type="submit"]');
 
-  if (form.id === 'magic-form') {
-    e.preventDefault();
-    var input = $('magic-text');
-    var text = input.value.trim();
-    if (!text) return;
-    var unbusy = busy(btn, 'Denkt nach …');
-    try {
-      await postJson('/api/magic-entry', { text: text, paid_from: MAGIC_PAID_FROM });
-      input.value = '';
-      closeMagic();
-      await afterMutation();
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      unbusy();
-    }
-    return;
-  }
-
   if (form.id === 'manual-form') {
     e.preventDefault();
-    var amount = parseFloat($('m-amount').value);
-    if (!amount || amount <= 0) {
-      markInvalid($('m-amount'));
-      showToast('Bitte einen gültigen Betrag eingeben', 'error');
-      return;
-    }
+    var amount = validAmount($('m-amount'));
+    if (!amount) return;
     var body = {
       amount: amount,
       type: $('m-type').value,
@@ -721,7 +664,7 @@ document.addEventListener('submit', async function (e) {
     var unbusy = busy(btn);
     try {
       await postJson('/api/transactions', body);
-      await afterMutation();
+      await afterMutation(refreshDashboard);
     } catch (err) {
       showToast(err.message, 'error');
       unbusy();
@@ -731,12 +674,8 @@ document.addEventListener('submit', async function (e) {
 
   if (form.id === 'settlement-form') {
     e.preventDefault();
-    var amount = parseFloat($('s-amount').value);
-    if (!amount || amount <= 0) {
-      markInvalid($('s-amount'));
-      showToast('Bitte einen gültigen Betrag eingeben', 'error');
-      return;
-    }
+    var amount = validAmount($('s-amount'));
+    if (!amount) return;
     var unbusy = busy(btn);
     try {
       await postJson('/api/settlements', {
@@ -745,7 +684,7 @@ document.addEventListener('submit', async function (e) {
         to: $('s-to').value,
       });
       closeSheet('settlement-overlay');
-      await afterMutation();
+      await afterMutation(refreshDashboard);
     } catch (err) {
       showToast(err.message, 'error');
       unbusy();
@@ -756,12 +695,8 @@ document.addEventListener('submit', async function (e) {
   if (form.id === 'edit-form') {
     e.preventDefault();
     if (!EDITING_ID) return;
-    var amount = parseFloat($('e-amount').value);
-    if (!amount || amount <= 0) {
-      markInvalid($('e-amount'));
-      showToast('Bitte einen gültigen Betrag eingeben', 'error');
-      return;
-    }
+    var amount = validAmount($('e-amount'));
+    if (!amount) return;
     var body = {
       amount: amount,
       type: $('e-type').value,
@@ -777,7 +712,7 @@ document.addEventListener('submit', async function (e) {
       await postJson('/api/transactions/' + EDITING_ID, body, 'PUT');
       EDITING_ID = null;
       closeSheet('edit-overlay');
-      await afterMutation();
+      await afterMutation(refreshDashboard);
     } catch (err) {
       showToast(err.message, 'error');
       unbusy();
@@ -785,31 +720,11 @@ document.addEventListener('submit', async function (e) {
     return;
   }
 });
+});
 `;
 
-const magicSheetCss = `
-@media (max-width: 767px) {
-  #magic-section {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 50;
-    margin: 0;
-    transform: translateY(110%);
-    transition: transform 0.22s ease-out;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
-    max-height: 85vh;
-    overflow-y: auto;
-    box-shadow: 0 -8px 30px rgba(15, 23, 42, 0.25);
-  }
-  body.magic-open #magic-section {
-    transform: translateY(0);
-  }
-}
-`;
-
+/* ------------------------------------------------------------------ */
+/* View                                                                */
 /* ------------------------------------------------------------------ */
 /* View                                                                */
 /* ------------------------------------------------------------------ */
@@ -864,17 +779,7 @@ export const DashboardView: FC<DashboardProps> = ({
                 <span aria-hidden="true">🔁</span> Wiederkehrend ({recurringCount})
               </a>
             </nav>
-            <a
-              href="/settings"
-              title="Einstellungen"
-              aria-label="Einstellungen"
-              class="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
-            >
-              <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-                {userName.charAt(0).toUpperCase()}
-              </span>
-              <span class="hidden text-sm font-medium text-slate-700 sm:inline">{userName}</span>
-            </a>
+            <UserChip userName={userName} />
           </div>
         </header>
 
@@ -891,54 +796,7 @@ export const DashboardView: FC<DashboardProps> = ({
           />
         </div>
 
-        <div id="magic-backdrop" data-action="close-magic" class="fixed inset-0 z-40 hidden bg-slate-900/40 md:hidden"></div>
-
-        <section id="magic-section" class="safe-bottom card mb-4">
-          <div class="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <h2 class="text-sm font-medium text-slate-500">
-                <span aria-hidden="true">✨</span> Magic Input
-              </h2>
-              <p class="mt-1 text-xs text-slate-500">
-                Einfach eintippen, was ausgegeben wurde – die KI erkennt Betrag, Kategorie, ob es gemeinsam war und mit welchem Konto bezahlt wurde.
-              </p>
-            </div>
-            <button
-              type="button"
-              data-action="close-magic"
-              aria-label="Magic Input schließen"
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500 md:hidden"
-            >
-              <span aria-hidden="true">✕</span>
-            </button>
-          </div>
-          <form id="magic-form" class="flex flex-col gap-2 sm:flex-row">
-            <input
-              id="magic-text"
-              type="text"
-              maxlength={500}
-              autocomplete="off"
-              placeholder='z. B. "Ich war für 45 Euro tanken" oder "Wir waren für 60 Euro essen"'
-              aria-label="Magic Input – Ausgabe in natürlicher Sprache beschreiben"
-              class={'flex-1 ' + INPUT_CLASS}
-            />
-            <button id="magic-btn" type="submit" class="btn-primary">
-              <span aria-hidden="true">✨</span> Hinzufügen
-            </button>
-          </form>
-          <div class="mt-3 flex flex-wrap items-center gap-2">
-            <span class="text-xs text-slate-500">Konto:</span>
-            <button type="button" data-paid-from="auto" class={PILL_ACTIVE}>
-              Automatisch (KI)
-            </button>
-            <button type="button" data-paid-from="joint" class={PILL_IDLE}>
-              Gemeinschaftskarte
-            </button>
-            <button type="button" data-paid-from="private" class={PILL_IDLE}>
-              Meine Karte / Bar
-            </button>
-          </div>
-        </section>
+        <MagicSheet />
 
         <div id="settlement-overlay" class="fixed inset-0 z-50 hidden">
           <div class="absolute inset-0 bg-slate-900/40" data-close="settlement-overlay"></div>
@@ -1075,21 +933,11 @@ export const DashboardView: FC<DashboardProps> = ({
 
       </main>
 
-      {/* Mobile Bottom-Navigation – Aktion „Hinzufügen“ öffnet das Magic-Sheet */}
-      <BottomNav page="dashboard" month={month}>
-        <button
-          type="button"
-          data-action="open-magic"
-          class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600 transition hover:bg-slate-50"
-        >
-          <span class="text-lg leading-none" aria-hidden="true">✨</span>
-          Hinzufügen
-        </button>
-      </BottomNav>
+      {/* Mobile Bottom-Navigation – „Hinzufügen“ öffnet das Magic-Sheet */}
+      <BottomNav page="dashboard" month={month} />
 
       <script dangerouslySetInnerHTML={{ __html: 'window.__MONTH = "' + month + '";' }} />
       <script dangerouslySetInnerHTML={{ __html: script }} />
-      <style dangerouslySetInnerHTML={{ __html: magicSheetCss }} />
     </Layout>
   );
 };

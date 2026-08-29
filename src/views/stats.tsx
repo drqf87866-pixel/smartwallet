@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx';
 import { Layout } from './layout';
-import { BottomNav } from './shared';
+import { BottomNav, MagicSheet, UserChip } from './shared';
 import { fmt, fmtDay, fmtMonthShort } from '../lib/format';
 
 export type CategorySlice = { category: string; spent: number };
@@ -169,17 +169,7 @@ export const StatsView: FC<StatsProps> = ({
               Hallo {userName}, hier ist die Analyse für „{householdName}“.
             </p>
           </div>
-          <a
-            href={'/dashboard?month=' + month}
-            title="Zurück zum Dashboard"
-            aria-label="Zurück zum Dashboard"
-            class="flex items-center gap-2 rounded-full bg-white py-1 pl-3 pr-1 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
-          >
-            <span class="hidden text-sm font-medium text-slate-700 sm:inline">Dashboard</span>
-            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-              {userName.charAt(0).toUpperCase()}
-            </span>
-          </a>
+          <UserChip userName={userName} />
         </header>
 
         {/* Monatsnavigation + Monatsbilanz */}
@@ -252,6 +242,8 @@ export const StatsView: FC<StatsProps> = ({
             </ol>
           )}
         </section>
+
+        <MagicSheet />
       </main>
 
       <BottomNav page="stats" month={month} />

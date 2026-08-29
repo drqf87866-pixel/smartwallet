@@ -2,7 +2,7 @@ import type { FC } from 'hono/jsx';
 import { frequencyLabel } from '../lib/recurring';
 import type { TransactionAccount, TransactionScope } from '../types';
 import { Layout } from './layout';
-import { BottomNav, CategorySelect, INPUT_CLASS, LABEL_CLASS } from './shared';
+import { BottomNav, CategorySelect, INPUT_CLASS, LABEL_CLASS, MagicSheet, UserChip } from './shared';
 import { fmt, fmtDate } from '../lib/format';
 
 /** Regel inkl. berechnetem nächsten Fälligkeitsdatum (null = inaktiv/keine mehr). */
@@ -202,6 +202,9 @@ export type RecurringViewProps = {
 /** Eigene Seite „Wiederkehrende Zahlungen“ (inkl. Anlegen-Formular + Edit-Overlay). */
 export const RecurringView: FC<RecurringViewProps> = ({ userName, householdName, rules, today }) => {
   const script = `
+// app.js wird mit defer geladen; Init-Logik daher in die __swInit-Queue
+window.__swInit = window.__swInit || [];
+window.__swInit.push(function () {
 // --- Kategorie-Dropdowns initial befüllen (nach Fragment-Swaps erneut) ---
 function syncAllCategoryOptions() {
   ['r-', 're-'].forEach(function (prefix) {
@@ -224,14 +227,6 @@ async function refreshRecurring() {
   $('recurring-frag').innerHTML = await fetchFragment('/recurring/fragments/list');
   syncAllCategoryOptions();
   return true;
-}
-
-async function afterMutation() {
-  try {
-    await refreshRecurring();
-  } catch (err) {
-    window.location.reload();
-  }
 }
 
 // Wiederkehrende Zahlung bearbeiten: Regel ins Overlay-Formular füllen
@@ -260,7 +255,7 @@ document.addEventListener('click', async function (e) {
     var unbusyBook = busy(recBook);
     try {
       await postJson('/api/recurring/' + recBook.getAttribute('data-rec-book') + '/book', {});
-      await afterMutation();
+      await afterMutation(refreshRecurring);
     } catch (err) {
       showToast(err.message, 'error');
       unbusyBook();
@@ -275,7 +270,7 @@ document.addEventListener('click', async function (e) {
     var unbusyToggle = busy(recToggle);
     try {
       await postJson('/api/recurring/' + recToggle.getAttribute('data-rec-toggle'), { active: nextActive }, 'PUT');
-      await afterMutation();
+      await afterMutation(refreshRecurring);
     } catch (err) {
       showToast(err.message, 'error');
       unbusyToggle();
@@ -299,7 +294,7 @@ document.addEventListener('click', async function (e) {
     try {
       await postJson('/api/recurring/' + recDelete.getAttribute('data-rec-delete'), {}, 'DELETE');
       REC_EDITING_ID = null;
-      await afterMutation();
+      await afterMutation(refreshRecurring);
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -314,12 +309,8 @@ document.addEventListener('submit', async function (e) {
 
   if (form.id === 'recurring-form') {
     e.preventDefault();
-    var rAmount = parseFloat($('r-amount').value);
-    if (!rAmount || rAmount <= 0) {
-      markInvalid($('r-amount'));
-      showToast('Bitte einen gültigen Betrag eingeben', 'error');
-      return;
-    }
+    var rAmount = validAmount($('r-amount'));
+    if (!rAmount) return;
     var rBody = {
       amount: rAmount,
       type: $('r-type').value,
@@ -335,7 +326,7 @@ document.addEventListener('submit', async function (e) {
       await postJson('/api/recurring', rBody);
       $('r-amount').value = '';
       $('r-description').value = '';
-      await afterMutation();
+      await afterMutation(refreshRecurring);
     } catch (err) {
       showToast(err.message, 'error');
       rUnbusy();
@@ -346,12 +337,8 @@ document.addEventListener('submit', async function (e) {
   if (form.id === 'recurring-edit-form') {
     e.preventDefault();
     if (!REC_EDITING_ID) return;
-    var reAmount = parseFloat($('re-amount').value);
-    if (!reAmount || reAmount <= 0) {
-      markInvalid($('re-amount'));
-      showToast('Bitte einen gültigen Betrag eingeben', 'error');
-      return;
-    }
+    var reAmount = validAmount($('re-amount'));
+    if (!reAmount) return;
     var reBody = {
       amount: reAmount,
       type: $('re-type').value,
@@ -367,13 +354,14 @@ document.addEventListener('submit', async function (e) {
       await postJson('/api/recurring/' + REC_EDITING_ID, reBody, 'PUT');
       REC_EDITING_ID = null;
       closeSheet('recurring-edit-overlay');
-      await afterMutation();
+      await afterMutation(refreshRecurring);
     } catch (err) {
       showToast(err.message, 'error');
       reUnbusy();
     }
     return;
   }
+});
 });
 `;
 
@@ -389,17 +377,7 @@ document.addEventListener('submit', async function (e) {
               Hallo {userName}, hier sind die Regeln für „{householdName}“ – sie werden automatisch zum Fälligkeitsdatum gebucht.
             </p>
           </div>
-          <a
-            href="/dashboard"
-            title="Zurück zum Dashboard"
-            aria-label="Zurück zum Dashboard"
-            class="flex items-center gap-2 rounded-full bg-white py-1 pl-3 pr-1 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
-          >
-            <span class="hidden text-sm font-medium text-slate-700 sm:inline">Dashboard</span>
-            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-              {userName.charAt(0).toUpperCase()}
-            </span>
-          </a>
+          <UserChip userName={userName} />
         </header>
 
         <section class="card mb-4">
@@ -463,6 +441,8 @@ document.addEventListener('submit', async function (e) {
             </form>
           </details>
         </section>
+
+        <MagicSheet />
 
         <RecurringEditOverlay />
       </main>

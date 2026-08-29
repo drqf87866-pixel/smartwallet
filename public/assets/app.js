@@ -87,6 +87,33 @@
   };
 
   /* ------------------------------------------------------------------ */
+  /* Betrags-Validierung (inkl. deutschem Komma) + gemeinsamer Hinweis    */
+  /* ------------------------------------------------------------------ */
+
+  window.validAmount = function (input) {
+    if (!input) return 0;
+    var amount = parseFloat(String(input.value).replace(',', '.'));
+    if (!amount || amount <= 0) {
+      markInvalid(input);
+      showToast('Bitte einen gültigen Betrag eingeben', 'error');
+      return 0;
+    }
+    return amount;
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Gemeinsame Fehler-Recovery: Refresh versuchen, sonst Reload          */
+  /* ------------------------------------------------------------------ */
+
+  window.afterMutation = async function (refreshFn) {
+    try {
+      await refreshFn();
+    } catch (err) {
+      window.location.reload();
+    }
+  };
+
+  /* ------------------------------------------------------------------ */
   /* Formular-Validierung: Feld markieren + fokussieren                   */
   /* ------------------------------------------------------------------ */
 
@@ -116,13 +143,27 @@
     );
   }
 
+  // Scroll-Lock mit Scrollbar-Kompensation, damit der Inhalt nicht springt
+  function lockScroll() {
+    var scrollbar = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbar > 0) {
+      document.documentElement.style.paddingRight = scrollbar + 'px';
+    }
+    document.documentElement.classList.add('overflow-hidden');
+  }
+
+  function unlockScroll() {
+    document.documentElement.classList.remove('overflow-hidden');
+    document.documentElement.style.paddingRight = '';
+  }
+
   window.openSheet = function (id) {
     var overlay = $(id);
     if (!overlay) return;
     lastFocused = document.activeElement;
     overlay.classList.remove('hidden');
     openOverlays.push(overlay);
-    document.documentElement.classList.add('overflow-hidden');
+    lockScroll();
     var f = focusables(overlay);
     if (f.length) f[0].focus();
   };
@@ -135,7 +176,7 @@
       return o !== overlay;
     });
     if (openOverlays.length === 0) {
-      document.documentElement.classList.remove('overflow-hidden');
+      unlockScroll();
     }
     if (lastFocused && typeof lastFocused.focus === 'function') {
       lastFocused.focus();
@@ -201,4 +242,18 @@
       if (fallback) catSel.value = fallback;
     }
   };
+
+  /* ------------------------------------------------------------------ */
+  /* Seiten-Init: app.js wird mit defer geladen (nicht render-blocking);  */
+  /* die Inline-Scripts der Seiten registrieren ihre Init-Funktionen      */
+  /* während des Parsens in __swInit, die hier nach dem Laden laufen.      */
+  /* ------------------------------------------------------------------ */
+
+  (window.__swInit = window.__swInit || []).forEach(function (fn) {
+    try {
+      fn();
+    } catch (err) {
+      console.error('SmartWallet init error', err);
+    }
+  });
 })();
