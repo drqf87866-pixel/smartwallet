@@ -15,7 +15,7 @@ transactions.get('/api/transactions', async (c) => {
 
   let sql = `
     SELECT t.id, t.user_id, u.name AS created_by, t.amount, t.type, t.category,
-           t.description, t.date, t.scope, t.paid_from
+           t.description, t.date, t.scope, t.paid_from, t.recurring_id
     FROM transactions t
     JOIN users u ON u.id = t.user_id
     WHERE u.household_id = ?1
@@ -78,7 +78,7 @@ async function loadEditableTransaction(
   const { results } = await db
     .prepare(
       `SELECT t.id, t.user_id, t.amount, t.type, t.category, t.description,
-              t.date, t.scope, t.paid_from
+              t.date, t.scope, t.paid_from, t.recurring_id
        FROM transactions t
        JOIN users u ON u.id = t.user_id
        WHERE t.id = ?1 AND u.household_id = ?2
@@ -116,6 +116,18 @@ transactions.put('/api/transactions/:id', async (c) => {
     .bind(t.amount, t.type, t.category, t.description, t.date, t.scope, t.paid_from, id)
     .run();
 
+  // Datum einer wiederkehrenden Occurrence verschoben? Dann den ursprünglichen
+  // Fälligkeitstermin merken, damit die Materialization sie nicht neu anlegt.
+  const oldRecurringId = found.row.recurring_id;
+  const oldDueDate = String(found.row.date).slice(0, 10);
+  if (oldRecurringId != null && t.date.slice(0, 10) !== oldDueDate) {
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO recurring_skips (recurring_id, due_date) VALUES (?1, ?2)',
+    )
+      .bind(oldRecurringId, oldDueDate)
+      .run();
+  }
+
   return c.json({
     transaction: {
       id,
@@ -131,6 +143,15 @@ transactions.delete('/api/transactions/:id', async (c) => {
   const found = await loadEditableTransaction(c.env.DB, id, c.get('householdId'));
   if ('error' in found) {
     return c.json({ error: found.error }, found.status as 400 | 403 | 404);
+  }
+
+  // Gelöschte Occurrence merken, damit die Materialization sie nicht neu anlegt
+  if (found.row.recurring_id != null) {
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO recurring_skips (recurring_id, due_date) VALUES (?1, ?2)',
+    )
+      .bind(found.row.recurring_id, String(found.row.date).slice(0, 10))
+      .run();
   }
 
   await c.env.DB.prepare('DELETE FROM transactions WHERE id = ?1').bind(id).run();

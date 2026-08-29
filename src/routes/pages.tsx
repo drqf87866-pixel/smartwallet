@@ -6,8 +6,9 @@ import type { Env } from '../types';
 import { COOKIE_NAME } from '../lib/auth';
 import { LoginView } from '../views/login';
 import { RegisterView } from '../views/register';
-import { DashboardView, SummaryCards, TxList, type DashboardTx, type DebtRow } from '../views/dashboard';
+import { DashboardView, SummaryCards, TxList, RecurringSection, type DashboardTx, type DebtRow } from '../views/dashboard';
 import { SettingsView } from '../views/settings';
+import { materializeRecurring, nextDueDate, todayBerlin, type RecurringRule } from '../lib/recurring';
 
 const pages = new Hono<Env>();
 
@@ -133,6 +134,14 @@ pages.get('/dashboard/fragments/list', async (c) => {
   return c.html(<TxList {...data} layout={layout} />);
 });
 
+/** Fragment der Sektion „Wiederkehrende Zahlungen“. */
+pages.get('/dashboard/fragments/recurring', async (c) => {
+  const auth = await requireDashboardAuth(c);
+  if (auth instanceof Response) return auth;
+  const data = await loadRecurringData(c, auth.hid);
+  return c.html(<RecurringSection {...data} />);
+});
+
 /** Auth für Fragment- und Dashboard-Routen: bei Fehlen 401 JSON (Fetch) oder Redirect. */
 async function requireDashboardAuth(c: Context<Env>): Promise<AuthInfo | Response> {
   const auth = await getAuth(c);
@@ -150,6 +159,9 @@ async function loadSummaryData(c: Context<Env>, auth: AuthInfo, month: string) {
   const uid = auth.uid;
   const prefix = `${month}%`;
   const currentPrefix = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}%`;
+
+  // Lazy Materialization: fällige Occurrences wiederkehrender Zahlungen erzeugen
+  await materializeRecurring(c.env.DB, hid);
 
   // Haushalt & Mitglieder
   const household = await c.env.DB
@@ -310,9 +322,13 @@ async function loadListData(c: Context<Env>, auth: AuthInfo, month: string) {
   const hid = auth.hid;
   const prefix = `${month}%`;
 
+  // Lazy Materialization (idempotent, INSERT OR IGNORE) – auch der reine
+  // Listen-Fragment-Abruf erzeugt fällige wiederkehrende Buchungen
+  await materializeRecurring(c.env.DB, hid);
+
   // Historie des Haushalts im gewählten Monat
   const { results: transactions } = await c.env.DB.prepare(
-    `SELECT t.id, u.name AS created_by, t.amount, t.type, t.category, t.description, t.date, t.scope, t.paid_from
+    `SELECT t.id, u.name AS created_by, t.amount, t.type, t.category, t.description, t.date, t.scope, t.paid_from, t.recurring_id
      FROM transactions t
      JOIN users u ON u.id = t.user_id
      WHERE u.household_id = ?1 AND t.date LIKE ?2
@@ -331,6 +347,31 @@ async function loadListData(c: Context<Env>, auth: AuthInfo, month: string) {
   };
 }
 
+/** Daten für die Sektion „Wiederkehrende Zahlungen“ (Recurring-Fragment). */
+async function loadRecurringData(c: Context<Env>, hid: number) {
+  const { results: rules } = await c.env.DB
+    .prepare('SELECT * FROM recurring_rules WHERE household_id = ?1 ORDER BY active DESC, id ASC')
+    .bind(hid)
+    .all<RecurringRule>();
+  const today = todayBerlin();
+
+  const rulesWithNextDue = await Promise.all(
+    rules.map(async (rule) => {
+      if (!rule.active) return { ...rule, next_due: null };
+      const { results: skips } = await c.env.DB
+        .prepare('SELECT due_date FROM recurring_skips WHERE recurring_id = ?1')
+        .bind(rule.id)
+        .all<{ due_date: string }>();
+      return {
+        ...rule,
+        next_due: nextDueDate(rule, today, new Set(skips.map((s) => s.due_date))),
+      };
+    }),
+  );
+
+  return { rules: rulesWithNextDue, today };
+}
+
 function monthLabelFor(month: string): string {
   return new Intl.DateTimeFormat('de-DE', {
     month: 'long',
@@ -341,11 +382,12 @@ function monthLabelFor(month: string): string {
 
 /** Kompletter Dashboard-Datensatz für die ganzseitige Ansicht. */
 async function loadDashboardData(c: Context<Env>, auth: AuthInfo, month: string) {
-  const [summary, list] = await Promise.all([
+  const [summary, list, recurring] = await Promise.all([
     loadSummaryData(c, auth, month),
     loadListData(c, auth, month),
+    loadRecurringData(c, auth.hid),
   ]);
-  return { ...summary, ...list, month };
+  return { ...summary, ...list, ...recurring, month };
 }
 
 export default pages;

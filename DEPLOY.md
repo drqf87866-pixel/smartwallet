@@ -202,6 +202,11 @@ npm run deploy      # baut CSS vorab und deployed
   ausführen — ergibt die Spalte `users.monthly_contribution` und übernimmt den bisherigen
   haushaltsweiten Fixbetrag (`joint_contribution`) einmalig auf alle Mitglieder. Der Beitrag wird
   danach von jedem Mitglied selbst unter „Einstellungen" gesetzt.
+- **Upgrade auf v0.5 (wiederkehrende Zahlungen)**: einmal
+  `npx wrangler d1 execute smartwallet-db --remote --file=./migrations/004_recurring.sql`
+  ausführen — ergibt die Tabellen `recurring_rules`/`recurring_skips` sowie die Spalte
+  `transactions.recurring_id` (inkl. Dedupe-Index). Danach `npm run deploy` – der Cron-Trigger
+  (`[triggers]` in `wrangler.toml`) wird mit dem Deploy automatisch registriert.
 
 ---
 

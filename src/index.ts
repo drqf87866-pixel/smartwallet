@@ -8,7 +8,9 @@ import magicRoutes from './routes/magic';
 import accountRoutes from './routes/account';
 import meRoutes from './routes/me';
 import registerRoutes from './routes/register';
+import recurringRoutes from './routes/recurring';
 import pageRoutes from './routes/pages';
+import { materializeRecurring } from './lib/recurring';
 
 const app = new Hono<Env>();
 
@@ -19,6 +21,8 @@ app.route('/', transactionRoutes);
 app.route('/', magicRoutes);
 app.route('/', accountRoutes);
 app.route('/', meRoutes);
+app.route('/', recurringRoutes);
+app.route('/', pageRoutes);
 
 app.get('/api/health', async (c) => {
   try {
@@ -157,4 +161,16 @@ app.post('/api/dev/seed', async (c) => {
   });
 });
 
-export default app;
+// Täglicher Cron (wrangler.toml [triggers]): materialisiert fällige Occurrences
+// wiederkehrender Zahlungen auch dann, wenn niemand das Dashboard aufruft.
+export default {
+  fetch: app.fetch,
+  scheduled: async (event: ScheduledEvent, env: Env['Bindings'], ctx: ExecutionContext) => {
+    const { results: households } = await env.DB
+      .prepare('SELECT id FROM households')
+      .all<{ id: number }>();
+    for (const household of households) {
+      await materializeRecurring(env.DB, household.id);
+    }
+  },
+};

@@ -62,6 +62,8 @@ curl -X POST http://localhost:8787/api/dev/seed
 | `/api/settings`       | GET/PUT | PUT: JWT | Startstand & Fixbetrag des Gemeinschaftskontos              |
 | `/api/contribution`   | POST    | JWT  | Monatsbeitrag aus Fixbetrag buchen (1×/Monat, sonst 409)         |
 | `/api/settlements`    | POST    | JWT  | Ausgleichszahlung zwischen den Partnern (`payer: me`/`partner`)  |
+| `/api/recurring`      | GET/POST| JWT  | Wiederkehrende Zahlungen: Regeln listen/anlegen                  |
+| `/api/recurring/:id`  | PUT/DEL | JWT  | Regel ändern/pausieren (`{active}`) / löschen (Buchungen bleiben)|
 
 ## Registrierung & Haushalte
 
@@ -94,6 +96,21 @@ Zwei (oder mehr) Privatkonten + ein Gemeinschaftskonto pro Haushalt. Jede Transa
 - Monat navigierbar über `?month=YYYY-MM` (Pfeile ‹ ›) – betrifft Ausgaben-Karte und Historie
 - Schulden-Karte rechnet über alle Monate (wegen Ausgleichszahlungen)
 
+## Wiederkehrende Zahlungen
+
+Im Dashboard (Sektion „🔁 Wiederkehrende Zahlungen") lassen sich Regeln anlegen – z. B.
+Miete (monatlich am 1.), Streaming-Abo (monatlich) oder Gehalt (Einnahme). Typen:
+`weekly` (day = Wochentag 1–7, Mo = 1), `monthly` (day = Tag 1–31, klemmt auf den
+Monatsletzten) und `yearly` (month + day).
+
+**Materialization:** Fällige Occurrences werden als normale Transaktionen erzeugt –
+lazy beim Dashboard-/Fragment-Load (idempotent über den Unique-Index
+`transactions(recurring_id, date)`, max. 24 Monate rückwirkend) und zusätzlich per
+täglichem Cron-Trigger (`[triggers]` in `wrangler.toml`, 03:00 UTC, Handler in
+`src/index.ts`). Gelöschte oder verschobene Occurrences landen in `recurring_skips`
+und werden nicht neu angelegt. Regeln pausieren (`active = 0`) stoppt nur künftige
+Buchungen; Regel löschen lässt bereits erzeugte Transaktionen bestehen.
+
 ### Beispiele
 
 ```bash
@@ -109,6 +126,11 @@ curl -b cookies.txt 'http://localhost:8787/api/transactions?month=2026-08'
 curl -b cookies.txt -X POST http://localhost:8787/api/magic-entry \
   -H 'Content-Type: application/json' \
   -d '{"text":"Wir waren für 60 Euro essen"}'
+
+# Wiederkehrende Zahlung anlegen (Miete, monatlich am 1.)
+curl -b cookies.txt -X POST http://localhost:8787/api/recurring \
+  -H 'Content-Type: application/json' \
+  -d '{"amount":900,"type":"expense","scope":"shared","paid_from":"joint","category":"Miete","frequency":"monthly","day":1,"start_date":"2026-09-01"}'
 ```
 
 ## Gemini

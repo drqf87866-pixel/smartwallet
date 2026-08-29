@@ -1,5 +1,6 @@
 import type { FC } from 'hono/jsx';
 import type { TransactionAccount, TransactionScope, TransactionType } from '../types';
+import { frequencyLabel } from '../lib/recurring';
 import { Layout } from './layout';
 
 export type DashboardTx = {
@@ -12,6 +13,25 @@ export type DashboardTx = {
   date: string;
   scope: TransactionScope;
   paid_from: TransactionAccount;
+  recurring_id: number | null;
+};
+
+/** Regel inkl. berechnetem nächsten Fälligkeitsdatum (null = inaktiv/keine mehr). */
+export type RecurringRuleView = {
+  id: number;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  description: string;
+  scope: TransactionScope;
+  paid_from: TransactionAccount;
+  frequency: 'weekly' | 'monthly' | 'yearly';
+  day: number;
+  month: number | null;
+  start_date: string;
+  end_date: string | null;
+  active: number;
+  next_due: string | null;
 };
 
 export type DebtRow = {
@@ -48,14 +68,18 @@ export type DashboardProps = SummaryCardsProps & TxListProps & {
   userName: string;
   householdName: string;
   month: string;
+  rules: RecurringRuleView[];
+  today: string;
 };
 
 const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 const fmt = (n: number) => eur.format(n);
 const dayFmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' });
 const timeFmt = new Intl.DateTimeFormat('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin' });
+const dateFmt = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 const fmtDay = (iso: string) => dayFmt.format(new Date(iso));
 const fmtTime = (iso: string) => timeFmt.format(new Date(iso));
+const fmtDate = (dateOnly: string) => dateFmt.format(new Date(dateOnly + 'T12:00:00Z'));
 
 const INPUT_CLASS =
   'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
@@ -274,6 +298,11 @@ const TxRow: FC<{ t: DashboardTx }> = ({ t }) => {
         <span class="ml-2 whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
           {t.category}
         </span>
+        {t.recurring_id ? (
+          <span class="ml-1 whitespace-nowrap rounded-full bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-600" title="Wiederkehrende Zahlung">
+            🔁
+          </span>
+        ) : null}
       </td>
       <td class="py-2.5 pr-3 text-slate-500">{t.created_by}</td>
       <td class="py-2.5 pr-3">
@@ -325,6 +354,9 @@ const TxCard: FC<{ t: DashboardTx }> = ({ t }) => {
           </span>
           <span class={'rounded-full px-2 py-0.5 font-medium ' + badge.style}>{badge.label}</span>
           <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">{t.category}</span>
+          {t.recurring_id ? (
+            <span class="rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-600" title="Wiederkehrende Zahlung">🔁</span>
+          ) : null}
         </p>
       </div>
       <div class="flex flex-col items-end gap-1.5">
@@ -465,6 +497,211 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
 );
 
 /* ------------------------------------------------------------------ */
+/* Wiederkehrende Zahlungen: Sektion + Bearbeiten-Overlay               */
+/* ------------------------------------------------------------------ */
+
+const FREQUENCY_OPTIONS = [
+  { value: 'monthly', label: 'Monatlich' },
+  { value: 'weekly', label: 'Wöchentlich' },
+  { value: 'yearly', label: 'Jährlich' },
+] as const;
+
+const MONTH_OPTIONS = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+];
+
+const DAY_HINTS = {
+  weekly: 'Wochentag 1–7 (Mo = 1)',
+  monthly: 'Tag 1–31 (klemmt auf Monatsende)',
+  yearly: 'Tag 1–31',
+} as const;
+
+/** Sektion „Wiederkehrende Zahlungen“ – eigenes Fragment (id recurring-frag). */
+export const RecurringSection: FC<{ rules: RecurringRuleView[]; today: string }> = ({
+  rules,
+  today,
+}) => (
+  <section class="mb-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+    <details>
+      <summary class="flex min-h-[44px] cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+        <h2 class="text-sm font-medium text-slate-500">
+          🔁 Wiederkehrende Zahlungen ({rules.length})
+        </h2>
+        <span class="text-slate-400">▾</span>
+      </summary>
+
+      {rules.length === 0 ? (
+        <p class="py-2 text-sm text-slate-400">
+          Noch keine Regeln – lege z. B. Miete, Abos oder Gehalt unten an und sie werden automatisch gebucht.
+        </p>
+      ) : (
+        <ul class="divide-y divide-slate-100">
+          {rules.map((rule) => (
+            <li class="flex items-start justify-between gap-3 py-2.5">
+              <div class="min-w-0">
+                <p class="truncate text-sm font-medium text-slate-700">
+                  {rule.description || rule.category}
+                  {rule.active ? null : (
+                    <span class="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">pausiert</span>
+                  )}
+                </p>
+                <p class="mt-0.5 text-xs text-slate-400">
+                  {frequencyLabel(rule)} · {rule.category}
+                  {rule.next_due ? <> · fällig am {fmtDate(rule.next_due)}</> : null}
+                </p>
+              </div>
+              <div class="flex shrink-0 items-center gap-1.5">
+                <span class={'whitespace-nowrap text-sm font-semibold ' + (rule.type === 'income' ? 'text-emerald-600' : 'text-red-500')}>
+                  {rule.type === 'income' ? '+' : '−'}
+                  {fmt(rule.amount)}
+                </span>
+                <button
+                  type="button"
+                  data-rec-toggle={rule.id}
+                  data-active={rule.active ? '1' : '0'}
+                  title={rule.active ? 'Pausieren' : 'Aktivieren'}
+                  class="flex h-8 w-8 items-center justify-center rounded border border-amber-200 bg-amber-50 text-sm text-amber-600 hover:bg-amber-100"
+                >
+                  {rule.active ? '⏸' : '▶'}
+                </button>
+                <button
+                  type="button"
+                  data-rec-edit={JSON.stringify(rule)}
+                  title="Bearbeiten"
+                  class="flex h-8 w-8 items-center justify-center rounded border border-indigo-200 bg-indigo-50 text-sm text-indigo-600 hover:bg-indigo-100"
+                >
+                  ✏️
+                </button>
+                <button
+                  type="button"
+                  data-rec-delete={rule.id}
+                  title="Regel löschen"
+                  class="flex h-8 w-8 items-center justify-center rounded border border-red-200 bg-red-50 text-sm text-red-600 hover:bg-red-100"
+                >
+                  🗑
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <details class="mt-3 border-t border-slate-100 pt-2">
+        <summary class="min-h-[40px] cursor-pointer select-none py-2 text-sm font-medium text-indigo-600">
+          ➕ Wiederkehrende Zahlung anlegen
+        </summary>
+        <form id="recurring-form" class="mt-2 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <input id="r-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
+          <select id="r-type" class={INPUT_CLASS}>
+            <option value="expense" selected>Ausgabe</option>
+            <option value="income">Einnahme</option>
+          </select>
+          <select id="r-scope" class={INPUT_CLASS}>
+            <option value="shared" selected>Gemeinsam</option>
+            <option value="personal">Persönlich</option>
+          </select>
+          <select id="r-paid-from" class={INPUT_CLASS}>
+            <option value="joint" selected>Gemeinschaftskonto</option>
+            <option value="private">Privatkonto</option>
+          </select>
+          <input id="r-category" type="text" maxlength={50} placeholder="Kategorie" class={INPUT_CLASS} />
+          <input id="r-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+          <select id="r-frequency" class={INPUT_CLASS}>
+            {FREQUENCY_OPTIONS.map((opt) => (
+              <option value={opt.value} selected={opt.value === 'monthly'}>{opt.label}</option>
+            ))}
+          </select>
+          <input id="r-day" type="number" min="1" max="31" required placeholder={DAY_HINTS.monthly} class={INPUT_CLASS} />
+          <select id="r-month" class={INPUT_CLASS + ' hidden'}>
+            {MONTH_OPTIONS.map((name, index) => (
+              <option value={index + 1}>{name}</option>
+            ))}
+          </select>
+          <label for="r-start" class="sr-only">Startdatum</label>
+          <input id="r-start" type="date" value={today} required class={INPUT_CLASS} />
+          <input id="r-end" type="date" class={INPUT_CLASS} />
+          <button
+            type="submit"
+            class="min-h-[44px] rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-900 sm:col-span-3 lg:col-span-6"
+          >
+            Regel speichern
+          </button>
+        </form>
+      </details>
+    </details>
+  </section>
+);
+
+/** Overlay zum Bearbeiten einer Regel (nur Zukunft – bestehende Buchungen bleiben). */
+const RecurringEditOverlay: FC = () => (
+  <div id="recurring-edit-overlay" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-slate-900/40" data-close="recurring-edit-overlay"></div>
+    <div
+      class="safe-bottom absolute inset-x-0 bottom-0 max-h-[88vh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[42rem] sm:max-w-full sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
+    >
+      <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden"></div>
+      <div class="mb-3 flex items-start justify-between">
+        <div>
+          <h2 class="text-sm font-medium text-slate-500">🔁 Wiederkehrende Zahlung bearbeiten</h2>
+          <p class="mt-1 text-xs text-slate-400">Änderungen wirken ab jetzt – bereits erzeugte Buchungen bleiben unverändert.</p>
+        </div>
+        <button
+          type="button"
+          data-close="recurring-edit-overlay"
+          aria-label="Schließen"
+          class="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+        >
+          ✕
+        </button>
+      </div>
+      <form id="recurring-edit-form" class="grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <input id="re-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
+        <select id="re-type" class={INPUT_CLASS}>
+          <option value="expense">Ausgabe</option>
+          <option value="income">Einnahme</option>
+        </select>
+        <select id="re-scope" class={INPUT_CLASS}>
+          <option value="shared">Gemeinsam</option>
+          <option value="personal">Persönlich</option>
+        </select>
+        <select id="re-paid-from" class={INPUT_CLASS}>
+          <option value="joint">Gemeinschaftskonto</option>
+          <option value="private">Privatkonto</option>
+        </select>
+        <input id="re-category" type="text" maxlength={50} placeholder="Kategorie" class={INPUT_CLASS} />
+        <input id="re-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+        <select id="re-frequency" class={INPUT_CLASS}>
+          {FREQUENCY_OPTIONS.map((opt) => (
+            <option value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <input id="re-day" type="number" min="1" max="31" required placeholder={DAY_HINTS.monthly} class={INPUT_CLASS} />
+        <select id="re-month" class={INPUT_CLASS + ' hidden'}>
+          {MONTH_OPTIONS.map((name, index) => (
+            <option value={index + 1}>{name}</option>
+          ))}
+        </select>
+        <input id="re-start" type="date" required class={INPUT_CLASS} />
+        <input id="re-end" type="date" class={INPUT_CLASS} />
+        <div class="flex gap-2 sm:col-span-3 lg:col-span-6">
+          <button type="submit" class="min-h-[44px] rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+            Änderungen speichern
+          </button>
+          <button
+            type="button"
+            data-close="recurring-edit-overlay"
+            class="min-h-[44px] rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+          >
+            Abbrechen
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+);
+
+/* ------------------------------------------------------------------ */
 /* Client-Script: Event-Delegation + Fragment-Refresh                  */
 /* ------------------------------------------------------------------ */
 
@@ -520,9 +757,13 @@ async function refreshDashboard() {
     fetchFragment('/dashboard/fragments/summary?month=' + month),
     fetchFragment('/dashboard/fragments/list?month=' + month +
       '&layout=' + (window.matchMedia('(min-width: 768px)').matches ? 'desktop' : 'mobile')),
+    $('recurring-frag')
+      ? fetchFragment('/dashboard/fragments/recurring')
+      : Promise.resolve(null),
   ]);
   $('summary-frag').innerHTML = parts[0];
   $('tx-frag').innerHTML = parts[1];
+  if (parts[2] !== null) $('recurring-frag').innerHTML = parts[2];
   return true;
 }
 
@@ -597,6 +838,46 @@ function openEditModal(tx) {
 }
 
 // --- Klick-Delegation (funktioniert auch nach Fragment-Swap) ---
+
+// Wiederkehrende Zahlung bearbeiten: Regel ins Overlay-Formular füllen
+var REC_EDITING_ID = null;
+
+function fillRecurringForm(prefix, rule) {
+  $(prefix + 'amount').value = rule.amount;
+  $(prefix + 'type').value = rule.type;
+  $(prefix + 'scope').value = rule.scope;
+  $(prefix + 'paid-from').value = rule.paid_from;
+  $(prefix + 'category').value = rule.category;
+  $(prefix + 'description').value = rule.description;
+  $(prefix + 'frequency').value = rule.frequency;
+  $(prefix + 'day').value = rule.day;
+  if (rule.month) $(prefix + 'month').value = String(rule.month);
+  $(prefix + 'start').value = rule.start_date;
+  $(prefix + 'end').value = rule.end_date || '';
+  syncFrequencyFields(prefix);
+}
+
+// Rhythmus-Wechsel: Monat nur bei yearly, Tag-Hinweis je Rhythmus
+function syncFrequencyFields(prefix) {
+  var freq = $(prefix + 'frequency').value;
+  var monthSelect = $(prefix + 'month');
+  var dayInput = $(prefix + 'day');
+  if (monthSelect) {
+    monthSelect.classList.toggle('hidden', freq !== 'yearly');
+  }
+  if (dayInput) {
+    if (freq === 'weekly') { dayInput.min = '1'; dayInput.max = '7'; }
+    else { dayInput.min = '1'; dayInput.max = '31'; }
+    dayInput.placeholder = ${JSON.stringify(DAY_HINTS)}[freq] || '';
+  }
+}
+
+['r-', 're-'].forEach(function (prefix) {
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === prefix + 'frequency') syncFrequencyFields(prefix);
+  });
+});
+
 document.addEventListener('click', async function (e) {
   var pill = e.target.closest('[data-paid-from]');
   if (pill) {
@@ -667,6 +948,44 @@ document.addEventListener('change', function (e) {
     } catch (err) {
       showToast(err.message, 'error');
     }
+    return;
+  }
+
+  // --- Wiederkehrende Zahlungen: Pausieren / Bearbeiten / Löschen ---
+  var recToggle = e.target.closest('[data-rec-toggle]');
+  if (recToggle) {
+    var nextActive = recToggle.getAttribute('data-active') !== '1';
+    var unbusyToggle = busy(recToggle);
+    try {
+      await postJson('/api/recurring/' + recToggle.getAttribute('data-rec-toggle'), { active: nextActive }, 'PUT');
+      await afterMutation();
+    } catch (err) {
+      showToast(err.message, 'error');
+      unbusyToggle();
+    }
+    return;
+  }
+
+  var recEdit = e.target.closest('[data-rec-edit]');
+  if (recEdit) {
+    var rule = JSON.parse(recEdit.getAttribute('data-rec-edit'));
+    REC_EDITING_ID = rule.id;
+    fillRecurringForm('re-', rule);
+    openSheet('recurring-edit-overlay');
+    setTimeout(function () { $('re-amount').focus(); }, 150);
+    return;
+  }
+
+  var recDelete = e.target.closest('[data-rec-delete]');
+  if (recDelete) {
+    if (!confirm('Diese Regel wirklich löschen? Bereits erzeugte Buchungen bleiben erhalten.')) return;
+    try {
+      await postJson('/api/recurring/' + recDelete.getAttribute('data-rec-delete'), {}, 'DELETE');
+      await afterMutation();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+    return;
   }
 });
 
@@ -674,6 +993,7 @@ document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') {
     closeSheet('settlement-overlay');
     closeSheet('edit-overlay');
+    closeSheet('recurring-edit-overlay');
     closeMagic();
   }
 });
@@ -749,6 +1069,71 @@ document.addEventListener('submit', async function (e) {
     } catch (err) {
       showToast(err.message, 'error');
       unbusy();
+    }
+    return;
+  }
+
+  if (form.id === 'recurring-form') {
+    e.preventDefault();
+    var rAmount = parseFloat($('r-amount').value);
+    if (!rAmount || rAmount <= 0) {
+      showToast('Bitte einen gültigen Betrag eingeben', 'error');
+      return;
+    }
+    var rBody = {
+      amount: rAmount,
+      type: $('r-type').value,
+      scope: $('r-scope').value,
+      paid_from: $('r-paid-from').value,
+      category: $('r-category').value,
+      description: $('r-description').value,
+      frequency: $('r-frequency').value,
+      day: parseInt($('r-day').value, 10),
+      start_date: $('r-start').value,
+    };
+    if (rBody.frequency === 'yearly') rBody.month = parseInt($('r-month').value, 10);
+    if ($('r-end').value) rBody.end_date = $('r-end').value;
+    var rUnbusy = busy(btn);
+    try {
+      await postJson('/api/recurring', rBody);
+      await afterMutation();
+    } catch (err) {
+      showToast(err.message, 'error');
+      rUnbusy();
+    }
+    return;
+  }
+
+  if (form.id === 'recurring-edit-form') {
+    e.preventDefault();
+    if (!REC_EDITING_ID) return;
+    var reAmount = parseFloat($('re-amount').value);
+    if (!reAmount || reAmount <= 0) {
+      showToast('Bitte einen gültigen Betrag eingeben', 'error');
+      return;
+    }
+    var reBody = {
+      amount: reAmount,
+      type: $('re-type').value,
+      scope: $('re-scope').value,
+      paid_from: $('re-paid-from').value,
+      category: $('re-category').value,
+      description: $('re-description').value,
+      frequency: $('re-frequency').value,
+      day: parseInt($('re-day').value, 10),
+      start_date: $('re-start').value,
+    };
+    if (reBody.frequency === 'yearly') reBody.month = parseInt($('re-month').value, 10);
+    if ($('re-end').value) reBody.end_date = $('re-end').value;
+    var reUnbusy = busy(btn);
+    try {
+      await postJson('/api/recurring/' + REC_EDITING_ID, reBody, 'PUT');
+      REC_EDITING_ID = null;
+      closeSheet('recurring-edit-overlay');
+      await afterMutation();
+    } catch (err) {
+      showToast(err.message, 'error');
+      reUnbusy();
     }
     return;
   }
@@ -829,6 +1214,7 @@ export const DashboardView: FC<DashboardProps> = ({
   contributionBooked,
   transactions,
   today,
+  rules,
 }) => {
   const others = members.filter((m) => m.name !== userName);
   const recipientOptions: { id: number | 'me' | 'joint'; name: string }[] = [
@@ -1028,6 +1414,12 @@ export const DashboardView: FC<DashboardProps> = ({
             </form>
           </div>
         </div>
+
+        <div id="recurring-frag">
+          <RecurringSection rules={rules} today={today} />
+        </div>
+
+        <RecurringEditOverlay />
 
         <div id="tx-frag">
           <TxList monthLabel={monthLabel} prevMonth={prevMonth} nextMonth={nextMonth} transactions={transactions} today={today} />
