@@ -4,6 +4,7 @@ import { BottomNav, MagicSheet, UserChip } from './shared';
 import { fmt, fmtDay, fmtMonthShort } from '../lib/format';
 
 export type CategorySlice = { category: string; spent: number };
+export type PersonExpense = { name: string; amount: number };
 export type HistoryMonth = { ym: string; income: number; expense: number };
 export type TopExpense = {
   description: string;
@@ -22,6 +23,7 @@ export type StatsProps = {
   nextMonth: string;
   categories: CategorySlice[];
   categoryTotal: number;
+  personExpenses: PersonExpense[];
   history: HistoryMonth[];
   topExpenses: TopExpense[];
 };
@@ -151,6 +153,7 @@ export const StatsView: FC<StatsProps> = ({
   nextMonth,
   categories,
   categoryTotal,
+  personExpenses,
   history,
   topExpenses,
 }) => {
@@ -208,6 +211,30 @@ export const StatsView: FC<StatsProps> = ({
         <section class="card mb-4">
           <h2 class="mb-4 text-sm font-medium text-slate-500">Ausgaben nach Kategorie · {monthLabel}</h2>
           <CategoryDonut slices={categories} total={categoryTotal} />
+        </section>
+
+        <section class="card mb-4">
+          <h2 class="mb-4 text-sm font-medium text-slate-500">Ausgaben pro Person · {monthLabel}</h2>
+          {personExpenses.every((person) => person.amount <= 0) ? (
+            <p class="py-6 text-center text-sm text-slate-500">Keine Ausgaben in diesem Monat.</p>
+          ) : (
+            <div>
+              {personExpenses.length > 1 && (
+                <p class="mb-2 text-xs text-slate-500">Gemeinsame Ausgaben werden gleichmäßig aufgeteilt.</p>
+              )}
+              <ul class="space-y-1.5 text-sm">
+                {personExpenses.map((person) => (
+                  <li class="flex items-center justify-between gap-2">
+                    <span class="flex min-w-0 items-center gap-2">
+                      <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-rose-600" aria-hidden="true"></span>
+                      <span class="truncate text-slate-600">{person.name}</span>
+                    </span>
+                    <span class="whitespace-nowrap tabular-nums text-slate-500">{fmt(person.amount)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
 
         <section class="card mb-4">

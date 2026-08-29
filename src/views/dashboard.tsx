@@ -413,7 +413,7 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
     </div>
 
     <details class="mb-4">
-      <summary class="min-h-[44px] cursor-pointer select-none py-2 text-sm font-medium text-indigo-600">
+      <summary class="min-h-[44px] cursor-pointer select-none list-none py-2 text-sm font-medium text-indigo-600 [&::-webkit-details-marker]:hidden">
         <span aria-hidden="true">➕</span> Eintrag manuell hinzufügen
       </summary>
       <form id="manual-form" class="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">

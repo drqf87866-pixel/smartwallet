@@ -433,7 +433,7 @@ async function loadStatsData(c: Context<Env>, auth: AuthInfo, month: string) {
 
   await materializeRecurring(c.env.DB, hid);
 
-  const [household, categoryResult, historyResult, topResult] = await Promise.all([
+  const [household, categoryResult, historyResult, topResult, membersResult, personRows] = await Promise.all([
     c.env.DB
       .prepare('SELECT name FROM households WHERE id = ?1')
       .bind(hid)
@@ -462,10 +462,39 @@ async function loadStatsData(c: Context<Env>, auth: AuthInfo, month: string) {
       )
       .bind(hid, prefix)
       .all<{ description: string; category: string; amount: number; date: string; created_by: string }>(),
+    c.env.DB
+      .prepare('SELECT id, name FROM users WHERE household_id = ?1 ORDER BY id')
+      .bind(hid)
+      .all<{ id: number; name: string }>(),
+    c.env.DB
+      .prepare(
+        `SELECT u.name,
+                COALESCE(SUM(CASE WHEN t.scope = 'personal' AND t.paid_from = 'private' THEN t.amount ELSE 0 END), 0) AS own_full,
+                COALESCE(SUM(CASE WHEN t.paid_from = 'joint' OR (t.scope = 'shared' AND t.paid_from = 'private') THEN t.amount ELSE 0 END), 0) AS shared
+         FROM users u
+         LEFT JOIN transactions t
+           ON t.user_id = u.id AND t.type = 'expense' AND t.date LIKE ?2
+         WHERE u.household_id = ?1
+         GROUP BY u.id, u.name`,
+      )
+      .bind(hid, prefix)
+      .all<{ name: string; own_full: number; shared: number }>(),
   ]);
   const categoryRows = categoryResult;
   const historyRows = historyResult.results;
   const topRows = topResult.results;
+
+  // Ausgaben pro Person: persönliche private Ausgaben komplett,
+  // gemeinsame (Gemeinschaftskonto oder private Vorschüsse) als Haushalts-Pool
+  // gleichmäßig 1/N auf alle Mitglieder verteilt
+  const memberCount = Math.max(membersResult.results.length, 1);
+  const sharedTotal = personRows.results.reduce((sum, row) => sum + row.shared, 0);
+  const personExpenses = personRows.results
+    .map((row) => ({
+      name: row.name,
+      amount: Math.round((row.own_full + sharedTotal / memberCount) * 100) / 100,
+    }))
+    .sort((a, b) => b.amount - a.amount);
 
   // Lücken im 12-Monats-Fenster mit 0 auffüllen (für die Balken-X-Achse)
   const historyByMonth = new Map(historyRows.map((row) => [row.ym, row]));
@@ -494,6 +523,7 @@ async function loadStatsData(c: Context<Env>, auth: AuthInfo, month: string) {
     nextMonth: shiftMonth(month, 1),
     categories,
     categoryTotal,
+    personExpenses,
     history,
     topExpenses: topRows,
   };

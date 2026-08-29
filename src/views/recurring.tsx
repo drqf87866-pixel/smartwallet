@@ -386,7 +386,7 @@ document.addEventListener('submit', async function (e) {
           </div>
 
           <details class="mt-3 border-t border-slate-100 pt-2">
-            <summary class="min-h-[44px] cursor-pointer select-none py-2 text-sm font-medium text-indigo-600">
+            <summary class="min-h-[44px] cursor-pointer select-none list-none py-2 text-sm font-medium text-indigo-600 [&::-webkit-details-marker]:hidden">
               <span aria-hidden="true">➕</span> Wiederkehrende Zahlung anlegen
             </summary>
             <form id="recurring-form" class="mt-2 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
