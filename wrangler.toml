@@ -1,0 +1,14 @@
+name = "smartwallet"
+main = "src/index.ts"
+compatibility_date = "2025-05-05"
+
+# D1-Bindung. WICHTIG: Der Bindungsname muss exakt "DB" bleiben – der Code
+# liest c.env.DB. Nur die database_id ersetzen, nichts umbenennen!
+[[d1_databases]]
+binding = "DB"
+database_name = "smartwallet-db"
+database_id = "3779d492-7f62-4fcd-b1ff-a1a6d0f2434d"
+
+[vars]
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+
