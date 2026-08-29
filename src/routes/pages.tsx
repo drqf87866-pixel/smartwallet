@@ -125,12 +125,16 @@ pages.get('/recurring', async (c) => {
   const auth = await getAuth(c);
   if (!auth) return c.redirect('/login');
 
-  const [data, household] = await Promise.all([
+  const [data, household, memberCountRow] = await Promise.all([
     loadRecurringData(c, auth.hid),
     c.env.DB
       .prepare('SELECT name FROM households WHERE id = ?1')
       .bind(auth.hid)
       .first<{ name: string }>(),
+    c.env.DB
+      .prepare('SELECT COUNT(*) AS n FROM users WHERE household_id = ?1')
+      .bind(auth.hid)
+      .first<{ n: number }>(),
   ]);
   return c.html(
     <RecurringView
@@ -138,6 +142,7 @@ pages.get('/recurring', async (c) => {
       householdName={household?.name ?? 'Haushalt'}
       rules={data.rules}
       today={data.today}
+      memberCount={Math.max(memberCountRow?.n ?? 1, 1)}
     />,
   );
 });

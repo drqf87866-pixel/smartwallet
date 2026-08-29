@@ -1,6 +1,6 @@
 import type { FC } from 'hono/jsx';
 import { Layout } from './layout';
-import { INPUT_CLASS } from './shared';
+import { BottomNav, INPUT_CLASS } from './shared';
 import { fmt } from '../lib/format';
 
 export type MemberInfo = { id: number; name: string; monthly_contribution: number };
@@ -16,7 +16,6 @@ type SettingsProps = {
 };
 
 const script = `
-// app.js wird mit defer geladen; Init-Logik daher in die __swInit-Queue
 window.__swInit = window.__swInit || [];
 window.__swInit.push(function () {
 document.getElementById('logout-btn').addEventListener('click', async function () {
@@ -104,41 +103,31 @@ export const SettingsView: FC<SettingsProps> = ({
   startBalance,
 }) => (
   <Layout title="Einstellungen">
-    <main class="mx-auto max-w-2xl p-4 pb-28 sm:p-8 md:pb-8">
-      <header class="mb-8 flex items-center justify-between">
+    <main class="mx-auto max-w-2xl px-4 pb-44 pt-4 sm:px-8 md:pb-8">
+      {/* Schlanker Kontext-Kopf (Content-First) */}
+      <header class="mb-4 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <a
-            href="/dashboard"
-            class="flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-          >
-            <span aria-hidden="true">←</span> Dashboard
-          </a>
+          <div class="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-600 text-lg font-bold text-white">
+            {userName.charAt(0).toUpperCase()}
+          </div>
+          <div>
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">{userName}</h1>
+            <p class="text-xs text-slate-500">{userEmail}</p>
+          </div>
         </div>
         <button
           id="logout-btn"
-          class="flex min-h-[44px] items-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+          class="flex min-h-[44px] items-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition active:scale-95"
         >
           Abmelden
         </button>
       </header>
 
-      <div class="mb-6 flex items-center gap-4">
-        <div class="flex h-14 w-14 items-center justify-center rounded-full bg-indigo-600 text-xl font-bold text-white">
-          {userName.charAt(0).toUpperCase()}
-        </div>
-        <div>
-          <h1 class="text-2xl font-bold tracking-tight">{userName}</h1>
-          <p class="text-sm text-slate-500">{userEmail}</p>
-        </div>
-      </div>
-
       <section class="card mb-4">
-        <h2 class="text-sm font-medium text-slate-500">
-          <span aria-hidden="true">👥</span> Haushalt „{householdName}“
-        </h2>
+        <h2 class="text-sm font-medium text-slate-500">Haushalt „{householdName}“</h2>
         <ul class="mt-3 space-y-1.5 text-sm">
           {members.map((m) => (
-            <li class="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+            <li class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
               <span class="text-slate-700">
                 {m.name}
                 {m.name === userName ? <span class="text-slate-500"> (du)</span> : null}
@@ -160,7 +149,7 @@ export const SettingsView: FC<SettingsProps> = ({
             type="button"
             class="flex min-h-[36px] items-center rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
           >
-            <span aria-hidden="true">📋</span> Kopieren
+            Kopieren
           </button>
           <a
             href={'/register?code=' + inviteCode}
@@ -172,9 +161,7 @@ export const SettingsView: FC<SettingsProps> = ({
       </section>
 
       <section class="card mb-4">
-        <h2 class="text-sm font-medium text-slate-500">
-          <span aria-hidden="true">💰</span> Mein Monatsbeitrag
-        </h2>
+        <h2 class="text-sm font-medium text-slate-500">Mein Monatsbeitrag</h2>
         <p class="mt-1 text-xs text-slate-500">
           Wird per Klick auf „Beitrag buchen“ vom Privatkonto aufs Gemeinschaftskonto überwiesen.
           Jedes Mitglied setzt seinen eigenen Betrag.
@@ -202,9 +189,7 @@ export const SettingsView: FC<SettingsProps> = ({
       </section>
 
       <section class="card mb-4">
-        <h2 class="text-sm font-medium text-slate-500">
-          <span aria-hidden="true">🏦</span> Gemeinschaftskonto
-        </h2>
+        <h2 class="text-sm font-medium text-slate-500">Gemeinschaftskonto</h2>
         <form id="settings-form" class="mt-3 flex items-end gap-3">
           <div class="flex-1">
             <label for="set-start" class="mb-1 block text-xs text-slate-500">
@@ -228,9 +213,7 @@ export const SettingsView: FC<SettingsProps> = ({
       </section>
 
       <section class="card">
-        <h2 class="text-sm font-medium text-slate-500">
-          <span aria-hidden="true">🔒</span> Passwort ändern
-        </h2>
+        <h2 class="text-sm font-medium text-slate-500">Passwort ändern</h2>
         <form id="password-form" class="mt-3 grid gap-3 sm:grid-cols-3">
           <div>
             <label for="pw-current" class="mb-1 block text-xs text-slate-500">
@@ -256,6 +239,8 @@ export const SettingsView: FC<SettingsProps> = ({
         </form>
       </section>
     </main>
+
+    <BottomNav page="settings" />
 
     <script dangerouslySetInnerHTML={{ __html: script }} />
   </Layout>

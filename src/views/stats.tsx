@@ -162,52 +162,49 @@ export const StatsView: FC<StatsProps> = ({
 
   return (
     <Layout title="Statistik">
-      <main class="mx-auto max-w-6xl p-4 pb-28 sm:p-8 md:pb-8">
-        <header class="mb-8 flex items-center justify-between">
+      <main class="mx-auto max-w-6xl px-4 pb-44 pt-4 sm:px-8 md:pb-8">
+        {/* Schlanker Kontext-Kopf (Content-First, kein Brand auf Mobile) */}
+        <header class="mb-4 flex items-center justify-between md:hidden">
           <div>
-            <h1 class="text-xl font-bold tracking-tight sm:text-2xl">
-              <span aria-hidden="true">📊</span> Statistik
-            </h1>
-            <p class="hidden text-sm text-slate-500 sm:block">
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">Statistik</h1>
+            <p class="text-xs text-slate-500">{householdName}</p>
+          </div>
+          <UserChip userName={userName} />
+        </header>
+
+        {/* Desktop-Kopf */}
+        <header class="mb-8 hidden items-center justify-between md:flex">
+          <div>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">Statistik</h1>
+            <p class="text-sm text-slate-500">
               Hallo {userName}, hier ist die Analyse für „{householdName}“.
             </p>
           </div>
           <UserChip userName={userName} />
         </header>
 
-        {/* Monatsnavigation + Monatsbilanz */}
-        <section class="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <nav class="flex items-center gap-2 text-sm" aria-label="Monatsnavigation">
-            <a
-              href={'/stats?month=' + prevMonth}
-              title="Voriger Monat"
-              aria-label="Voriger Monat"
-              class="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-lg text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            >
-              <span aria-hidden="true">‹</span>
-            </a>
-            <span class="min-w-[9rem] text-center text-sm font-medium text-slate-600">{monthLabel}</span>
-            <a
-              href={'/stats?month=' + nextMonth}
-              title="Nächster Monat"
-              aria-label="Nächster Monat"
-              class="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-lg text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-            >
-              <span aria-hidden="true">›</span>
-            </a>
-          </nav>
-          <p class="text-sm text-slate-500">
-            Bilanz:{' '}
-            <span class={'font-bold tabular-nums ' + (balance >= 0 ? 'text-emerald-700' : 'text-red-600')}>
+        {/* Monatsbilanz – Hauptkennzahl der Seite */}
+        <section class="card mb-4 !p-0 overflow-hidden md:hidden">
+          <div class="bg-gradient-to-br from-slate-800 to-slate-900 px-5 py-6 text-white">
+            <p class="text-sm font-medium text-slate-300">Bilanz · {monthLabel}</p>
+            <p class={'mt-1 text-4xl font-bold tabular-nums tracking-tight ' + (balance >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
               {balance >= 0 ? '+' : '−'}
               {fmt(Math.abs(balance))}
-            </span>
-            <span class="ml-2 text-xs text-slate-500">
-              ({fmt(incomeTotal)} − {fmt(categoryTotal)})
-            </span>
-          </p>
+            </p>
+            <div class="mt-4 grid grid-cols-2 gap-3">
+              <div class="rounded-xl bg-white/10 px-3 py-2.5">
+                <p class="text-[11px] text-slate-300">Einnahmen</p>
+                <p class="text-lg font-bold tabular-nums text-emerald-400">{fmt(incomeTotal)}</p>
+              </div>
+              <div class="rounded-xl bg-white/10 px-3 py-2.5">
+                <p class="text-[11px] text-slate-300">Ausgaben</p>
+                <p class="text-lg font-bold tabular-nums text-rose-400">{fmt(categoryTotal)}</p>
+              </div>
+            </div>
+          </div>
         </section>
 
+        {/* Kategorien – priorisiert: Donut nur für die Top-Kategorien lesbar */}
         <section class="card mb-4">
           <h2 class="mb-4 text-sm font-medium text-slate-500">Ausgaben nach Kategorie · {monthLabel}</h2>
           <CategoryDonut slices={categories} total={categoryTotal} />
@@ -251,7 +248,9 @@ export const StatsView: FC<StatsProps> = ({
               {topExpenses.map((expense, index) => (
                 <li class="flex items-center justify-between gap-3 py-2.5">
                   <span class="flex min-w-0 items-center gap-3">
-                    <span class="w-5 shrink-0 text-center text-xs font-bold text-slate-500">{index + 1}</span>
+                    <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-500">
+                      {index + 1}
+                    </span>
                     <span class="min-w-0">
                       <span class="block truncate text-sm font-medium text-slate-700">
                         {expense.description || expense.category}
@@ -272,6 +271,35 @@ export const StatsView: FC<StatsProps> = ({
 
         <MagicSheet />
       </main>
+
+      {/* Daumenzonen-Bar: Monatsnavigation unten, fix über der BottomNav */}
+      <nav
+        aria-label="Monatsnavigation"
+        class="fixed inset-x-0 bottom-[4.5rem] z-20 flex items-center justify-between gap-2 border-t border-slate-200/70 bg-white/95 px-4 py-2.5 backdrop-blur md:hidden"
+        style="padding-bottom: calc(0.625rem + env(safe-area-inset-bottom, 0px))"
+      >
+        <a
+          href={'/stats?month=' + prevMonth}
+          aria-label="Voriger Monat"
+          class="flex h-11 min-w-[88px] items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-700 active:bg-slate-50"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" class="h-4 w-4" aria-hidden="true">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          <span class="sr-only">Voriger Monat</span>
+        </a>
+        <span class="flex-1 text-center text-sm font-semibold text-slate-800">{monthLabel}</span>
+        <a
+          href={'/stats?month=' + nextMonth}
+          aria-label="Nächster Monat"
+          class="flex h-11 min-w-[88px] items-center justify-center rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-700 active:bg-slate-50"
+        >
+          <span class="sr-only">Nächster Monat</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" class="h-4 w-4" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+        </a>
+      </nav>
 
       <BottomNav page="stats" month={month} />
     </Layout>

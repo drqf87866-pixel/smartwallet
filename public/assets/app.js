@@ -95,10 +95,78 @@
     var amount = parseFloat(String(input.value).replace(',', '.'));
     if (!amount || amount <= 0) {
       markInvalid(input);
-      showToast('Bitte einen gültigen Betrag eingeben', 'error');
+      showToast('Bitte einen gültigen Betrag eingeben (z. B. 12,50)', 'error');
       return 0;
     }
     return amount;
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Konsequenz-Vorschau für Erfassungsformulare                          */
+  /* prefix: 'm' | 'r' – erwartet {prefix}-type/-scope/-paid-from/-amount/-preview */
+  /* ------------------------------------------------------------------ */
+
+  window.swMoney = function (n) {
+    return n.toFixed(2).replace('.', ',') + ' €';
+  };
+
+  window.updatePreview = function (prefix, memberCount) {
+    var el = $(prefix + 'preview');
+    var typeSel = $(prefix + 'type');
+    if (!el || !typeSel) return;
+    var type = typeSel.value;
+    var scopeSel = $(prefix + 'scope');
+    var paidSel = $(prefix + 'paid-from');
+    var scope = scopeSel ? scopeSel.value : 'shared';
+    var paidFrom = paidSel ? paidSel.value : 'joint';
+    var amountRaw = $(prefix + 'amount') ? String($(prefix + 'amount').value).replace(',', '.') : '';
+    var amount = parseFloat(amountRaw);
+
+    var text;
+    if (type === 'income') {
+      text = '→ Einnahme auf das ' + (paidFrom === 'joint' ? 'Gemeinschaftskonto' : 'Privatkonto');
+    } else if (scope === 'shared') {
+      text = '→ Gemeinsame Ausgabe' + (paidFrom === 'joint' ? ' vom Gemeinschaftskonto' : ', privat vorgestreckt');
+    } else {
+      text = '→ Persönliche Ausgabe vom ' + (paidFrom === 'joint' ? 'Gemeinschaftskonto' : 'Privatkonto');
+    }
+    if (amount > 0) {
+      text += ' · ' + swMoney(amount);
+      if (type === 'expense' && scope === 'shared' && memberCount > 1) {
+        text += ' · je ' + swMoney(amount / memberCount) + ' pro Person';
+      }
+    }
+    el.textContent = text;
+  };
+
+  /* ------------------------------------------------------------------ */
+  /* Smart Defaults: zuletzt genutzten Bereich/Konto merken               */
+  /* ------------------------------------------------------------------ */
+
+  window.swSaveDefaults = function (scope, paidFrom) {
+    try {
+      localStorage.setItem('sw-default-scope', scope);
+      localStorage.setItem('sw-default-paid-from', paidFrom);
+    } catch (err) {
+      /* localStorage ggf. nicht verfügbar – Defaults sind optional */
+    }
+  };
+
+  window.swApplyDefaults = function (prefix) {
+    try {
+      var scope = localStorage.getItem('sw-default-scope');
+      var paidFrom = localStorage.getItem('sw-default-paid-from');
+      var scopeSel = $(prefix + 'scope');
+      var paidSel = $(prefix + 'paid-from');
+      if (scope === 'personal' || scope === 'shared') {
+        if (scopeSel) scopeSel.value = scope;
+      }
+      if (paidFrom === 'private' || paidFrom === 'joint') {
+        if (paidSel) paidSel.value = paidFrom;
+      }
+    } catch (err) {
+      /* ignore */
+    }
   };
 
   /* ------------------------------------------------------------------ */

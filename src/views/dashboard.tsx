@@ -85,23 +85,25 @@ const isEditable = (t: DashboardTx) => t.type !== 'settlement' && t.category !==
 const DebtRows: FC<{ debts: DebtRow[] }> = ({ debts }) => (
   <>
     {debts.map((d) => (
-      <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
-        <span class={d.kind === 'owed-to-you' ? 'text-emerald-700' : 'text-amber-700'}>
-          {d.kind === 'owed-to-you' ? `${d.other} → du` : `du → ${d.other}`}
-        </span>
-        <span class="flex items-center gap-1.5">
-          <span class="font-semibold">{fmt(d.amount)}</span>
-          <button
-            type="button"
-            data-quick-settle
-            data-amount={d.amount.toFixed(2)}
-            data-from={d.kind === 'you-owe' ? 'me' : d.otherId}
-            data-to={d.kind === 'you-owe' ? d.otherId : 'me'}
-            class="min-h-[36px] rounded border border-indigo-200 bg-indigo-50 px-2.5 text-xs font-medium text-indigo-600 hover:bg-indigo-100"
-          >
-            begleichen
-          </button>
-        </span>
+      <li class="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-slate-700">
+            {d.kind === 'owed-to-you' ? `${d.other} → du` : `du → ${d.other}`}
+          </p>
+          <p class={'text-sm font-semibold tabular-nums ' + (d.kind === 'owed-to-you' ? 'text-emerald-700' : 'text-amber-700')}>
+            {fmt(d.amount)}
+          </p>
+        </div>
+        <button
+          type="button"
+          data-quick-settle
+          data-amount={d.amount.toFixed(2)}
+          data-from={d.kind === 'you-owe' ? 'me' : d.otherId}
+          data-to={d.kind === 'you-owe' ? d.otherId : 'me'}
+          class="shrink-0 rounded-full bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition active:scale-95"
+        >
+          Begleichen
+        </button>
       </li>
     ))}
   </>
@@ -121,67 +123,72 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
   myContribution,
   contributionBooked,
 }) => {
+  const multi = members.length >= 2;
   return (
     <>
-      {/* Mobile: eine kompakte Karte, 3 Werte nebeneinander */}
-      <section class="mb-4 md:hidden">
-        <article class="card">
-          <div class="grid grid-cols-3 divide-x divide-slate-200 text-center">
-            <div class="px-1">
-              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Privat</p>
-              <p
-                class={
-                  'mt-1 text-lg font-bold tabular-nums ' +
-                  (privateBalance >= 0 ? 'text-emerald-700' : 'text-red-600')
-                }
-              >
-                {fmt(privateBalance)}
-              </p>
-            </div>
-            <div class="px-1">
-              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Gemeinsam</p>
-              <p
-                class={
-                  'mt-1 text-lg font-bold tabular-nums ' +
-                  (jointPot.saldo >= 0 ? 'text-indigo-600' : 'text-red-600')
-                }
-              >
-                {fmt(jointPot.saldo)}
-              </p>
-            </div>
-            <div class="px-1">
-              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Ausgaben</p>
-              <p class="mt-1 text-lg font-bold tabular-nums text-indigo-600">{fmt(sharedMonth.total)}</p>
+      {/* Hero-Karte: eine klare Hauptkennzahl + kompakte Nebenwerte */}
+      <section class="space-y-3 md:hidden">
+        <article class="card !p-0 overflow-hidden">
+          <div class="bg-gradient-to-br from-indigo-600 to-indigo-700 px-5 py-6 text-white">
+            <p class="text-sm font-medium text-indigo-100">Gemeinsame Ausgaben · {monthLabel}</p>
+            <p class="mt-1 text-4xl font-bold tabular-nums tracking-tight">{fmt(sharedMonth.total)}</p>
+            <div class="mt-4 grid grid-cols-2 gap-3">
+              <div class="rounded-xl bg-white/10 px-3 py-2.5">
+                <p class="text-[11px] text-indigo-100">Privat-Saldo</p>
+                <p class={'text-lg font-bold tabular-nums ' + (privateBalance >= 0 ? 'text-white' : 'text-red-200')}>
+                  {fmt(privateBalance)}
+                </p>
+              </div>
+              <div class="rounded-xl bg-white/10 px-3 py-2.5">
+                <p class="text-[11px] text-indigo-100">Gemeinschaftskonto</p>
+                <p class="text-lg font-bold tabular-nums text-white">{fmt(jointPot.saldo)}</p>
+              </div>
             </div>
           </div>
-          <p class="mt-2 text-center text-[11px] leading-tight text-slate-500">
-            Start {fmt(jointPot.start)} · eingezahlt {fmt(jointPot.transfers)} ·{' '}
-            {fmt(sharedMonth.advanced)} vorgestreckt · {monthLabel}
-          </p>
 
-          {members.length < 2 ? (
-            <p class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-500">
-              Du bist solo im Haushalt. Einladungscode: oben rechts auf dein Profilbild → Einstellungen.
-            </p>
-          ) : debts.length === 0 ? (
-            <p class="mt-3 text-center text-xs font-medium text-emerald-700">
-              Alles ausgeglichen <span aria-hidden="true">🎉</span>
-            </p>
-          ) : (
-            <details class="group mt-3 border-t border-slate-100 pt-1">
-              <summary class="flex min-h-[44px] cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
-                <span class="text-xs font-medium text-slate-500">Offene Positionen ({debts.length})</span>
-                <span class="text-slate-500 transition group-open:rotate-180" aria-hidden="true">▾</span>
-              </summary>
-              <ul class="space-y-1.5 pb-1 text-xs">
-                <DebtRows debts={debts} />
-              </ul>
-              <p class="mt-1 text-[10px] text-slate-500">
-                laufend: private Vorschüsse 1/{members.length} umgelegt − Ausgleiche
+          <div class="px-5 pb-5 pt-4">
+            {!multi ? (
+              <p class="rounded-xl bg-slate-50 px-4 py-3 text-sm leading-snug text-slate-500">
+                Du bist solo im Haushalt. Lade deinen Partner über dein Profil ein, um gemeinsam zu buchen.
               </p>
-            </details>
-          )}
+            ) : debts.length === 0 ? (
+              <p class="flex items-center gap-2 text-sm font-medium text-emerald-700">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" class="h-5 w-5" aria-hidden="true">
+                  <path d="M20 6 9 17l-5-5" />
+                </svg>
+                Alles ausgeglichen – niemand schuldet etwas.
+              </p>
+            ) : (
+              <>
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Offene Positionen</p>
+                <ul class="space-y-2">
+                  <DebtRows debts={debts} />
+                </ul>
+              </>
+            )}
+          </div>
         </article>
+
+        {/* Sekundär-Aktionen: unten in der Daumenzone der Karte */}
+        <div class="grid grid-cols-2 gap-3">
+          {myContribution > 0 && !contributionBooked ? (
+            <button
+              type="button"
+              data-action="contribution"
+              class="min-h-[52px] rounded-2xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm transition active:scale-95"
+            >
+              Beitrag buchen
+              <span class="block text-xs font-normal text-emerald-100">{fmt(myContribution)}</span>
+            </button>
+          ) : (
+            <button type="button" data-action="open-settle" class="min-h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 shadow-sm transition active:scale-95">
+              Ausgleich
+            </button>
+          )}
+          <button type="button" data-action="open-settle" class="min-h-[52px] rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition active:scale-95">
+            Ausgleichszahlung
+          </button>
+        </div>
       </section>
 
       {/* Desktop: Kachel-Grid */}
@@ -214,7 +221,7 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
 
         <article class="card">
           <h2 class="text-sm font-medium text-slate-500">Wer schuldet wem?</h2>
-          {members.length < 2 ? (
+          {!multi ? (
             <p class="mt-2 text-xs text-slate-500">
               Du bist derzeit solo im Haushalt. Teile den Einladungscode (oben rechts unter deinem Namen → Einstellungen),
               um die gemeinsame Abrechnung zu starten.
@@ -235,21 +242,17 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
             laufend: private Vorschüsse 1/{members.length} umgelegt − Ausgleiche
           </p>
         </article>
-      </section>
 
-      <section class="mb-4 flex flex-wrap items-center gap-3">
-        {myContribution > 0 && !contributionBooked ? (
-          <button
-            type="button"
-            data-action="contribution"
-            class="btn-primary bg-emerald-600 hover:bg-emerald-700"
-          >
-            <span aria-hidden="true">💰</span> Beitrag buchen ({fmt(myContribution)})
+        <section class="col-span-full flex flex-wrap items-center gap-3 md:col-span-2 xl:col-span-4">
+          {myContribution > 0 && !contributionBooked ? (
+            <button type="button" data-action="contribution" class="btn-primary bg-emerald-600 hover:bg-emerald-700">
+              Beitrag buchen ({fmt(myContribution)})
+            </button>
+          ) : null}
+          <button type="button" data-action="open-settle" class="btn-secondary">
+            Ausgleichszahlung erfassen
           </button>
-        ) : null}
-        <button type="button" data-action="open-settle" class="btn-secondary">
-          <span aria-hidden="true">🤝</span> Ausgleichszahlung erfassen
-        </button>
+        </section>
       </section>
     </>
   );
@@ -318,59 +321,66 @@ const TxRow: FC<{ t: DashboardTx }> = ({ t }) => {
   );
 };
 
+/** Gruppiert die Transaktionen (bereits datum-absteigend) nach Kalendertag. */
+function groupByDay(txs: DashboardTx[]): { key: string; items: DashboardTx[] }[] {
+  const groups: { key: string; items: DashboardTx[] }[] = [];
+  for (const t of txs) {
+    const key = String(t.date).slice(0, 10);
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.items.push(t);
+    else groups.push({ key, items: [t] });
+  }
+  return groups;
+}
+
+function dayLabel(key: string, today: string): string {
+  if (key === today) return 'Heute';
+  const y = new Date(today + 'T12:00:00Z');
+  y.setUTCDate(y.getUTCDate() - 1);
+  if (key === y.toISOString().slice(0, 10)) return 'Gestern';
+  return fmtDay(key + 'T12:00:00Z');
+}
+
+/** Mobile Transaktionskarte – Tippen auf „⋯“ öffnet die Aktions-Liste (Daumenzone). */
 const TxCard: FC<{ t: DashboardTx }> = ({ t }) => {
   const badge = accountBadge(t);
   const editable = isEditable(t);
   return (
-    <li class="flex items-start justify-between gap-3 py-3">
-      <div class="min-w-0">
-        <p class="truncate font-medium text-slate-700">{t.description || t.category}</p>
-        <p class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-          <span>
-            {fmtDay(t.date)} · {fmtTime(t.date)} · {t.created_by}
-          </span>
+    <li class="flex items-center gap-3 py-3">
+      <div class="min-w-0 flex-1">
+        <p class="truncate font-medium text-slate-800">{t.description || t.category}</p>
+        <p class="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
           <span class={'rounded-full px-2 py-0.5 font-medium ' + badge.style}>{badge.label}</span>
-          <span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-500">{t.category}</span>
+          <span class="truncate">{t.category}</span>
           {t.recurring_id ? (
-            <span
-              class="rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-600"
-              title="Wiederkehrende Zahlung"
-            >
-              <span aria-hidden="true">🔁</span>
-              <span class="sr-only">Wiederkehrende Zahlung</span>
+            <span class="rounded-full bg-violet-50 px-2 py-0.5 font-medium text-violet-600" title="Wiederkehrende Zahlung">
+              🔁
             </span>
           ) : null}
         </p>
+        <p class="mt-0.5 text-xs text-slate-400">
+          {fmtDay(t.date)} · {fmtTime(t.date)} · {t.created_by}
+        </p>
       </div>
-      <div class="flex flex-col items-end gap-1.5">
-        <span class={'whitespace-nowrap font-semibold tabular-nums ' + amountColor(t)}>
-          {amountSign(t)}
-          {fmt(t.amount)}
-        </span>
-        {editable ? (
-          <span class="flex gap-1.5">
-            <button
-              type="button"
-              data-edit
-              data-tx={JSON.stringify(t)}
-              title="Bearbeiten"
-              aria-label="Transaktion bearbeiten"
-              class="flex h-10 w-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 text-sm font-medium text-indigo-600"
-            >
-              <span aria-hidden="true">✏️</span>
-            </button>
-            <button
-              type="button"
-              data-delete={t.id}
-              title="Löschen"
-              aria-label="Transaktion löschen"
-              class="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-sm font-medium text-red-600"
-            >
-              <span aria-hidden="true">🗑</span>
-            </button>
-          </span>
-        ) : null}
-      </div>
+      <span class={'whitespace-nowrap font-semibold tabular-nums ' + amountColor(t)}>
+        {amountSign(t)}
+        {fmt(t.amount)}
+      </span>
+      {editable ? (
+        <button
+          type="button"
+          data-card-menu
+          data-tx={JSON.stringify(t)}
+          aria-label="Transaktion bearbeiten oder löschen"
+          class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-400 transition active:bg-slate-100"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5" aria-hidden="true">
+            <circle cx="5" cy="12" r="1.6" />
+            <circle cx="12" cy="12" r="1.6" />
+            <circle cx="19" cy="12" r="1.6" />
+          </svg>
+        </button>
+      ) : null}
     </li>
   );
 };
@@ -378,8 +388,7 @@ const TxCard: FC<{ t: DashboardTx }> = ({ t }) => {
 /**
  * Transaktionssektion. `layout` steuert, welche Repräsentation gerendert
  * wird: undefined (ganzseitige Ansicht) rendert beide (CSS-gesteuert),
- * 'mobile'/'desktop' nur eine – für das List-Fragment, das der Client mit
- * passendem Layout-Parameter anfordert.
+ * 'mobile'/'desktop' nur eine – für das List-Fragment.
  */
 export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
   monthLabel,
@@ -388,125 +397,163 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
   transactions,
   today,
   layout,
-}) => (
-  <section class="card">
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-sm font-medium text-slate-500">Transaktionen · {monthLabel}</h2>
-      <nav class="flex items-center gap-2 text-sm" aria-label="Monatsnavigation">
+}) => {
+  const groups = groupByDay(transactions);
+  return (
+    <section>
+      {/* Monats-Steuerung – oben kompakt (Desktop), unten als Daumenzonen-Bar (Mobile) */}
+      <div class="mb-1 flex items-center justify-between md:hidden">
+        <h2 class="text-base font-bold text-slate-800">Transaktionen</h2>
+      </div>
+
+      <details class="mb-4 md:hidden">
+        <summary class="flex min-h-[48px] cursor-pointer select-none list-none items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-indigo-600 shadow-sm [&::-webkit-details-marker]:hidden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" class="h-4 w-4" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Eintrag manuell hinzufügen
+        </summary>
+        <form id="manual-form" class="mt-3 grid gap-3">
+          <label class="block">
+            <span class={LABEL_CLASS}>Betrag</span>
+            <input id="m-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Beschreibung</span>
+            <input id="m-description" type="text" maxlength={200} placeholder="Beschreibung" autocomplete="off" class={INPUT_CLASS} />
+          </label>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block">
+              <span class={LABEL_CLASS}>Art</span>
+              <select id="m-type" class={INPUT_CLASS}>
+                <option value="expense" selected>Ausgabe</option>
+                <option value="income">Einnahme</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class={LABEL_CLASS}>Bereich</span>
+              <select id="m-scope" class={INPUT_CLASS}>
+                <option value="shared" selected>Gemeinsam</option>
+                <option value="personal">Persönlich</option>
+              </select>
+            </label>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block">
+              <span class={LABEL_CLASS}>Konto</span>
+              <select id="m-paid-from" class={INPUT_CLASS}>
+                <option value="joint" selected>Gemeinschaftskonto</option>
+                <option value="private">Privatkonto</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class={LABEL_CLASS}>Kategorie</span>
+              <CategorySelect id="m-category" />
+            </label>
+          </div>
+          <label class="block">
+            <span class={LABEL_CLASS}>Datum</span>
+            <input id="m-date" type="date" value={today} autocomplete="off" class={INPUT_CLASS} />
+          </label>
+          <p id="m-preview" class="text-xs text-slate-500" aria-live="polite"></p>
+          <button type="submit" class="btn-primary w-full">
+            Speichern
+          </button>
+        </form>
+      </details>
+
+      {transactions.length === 0 ? (
+        <div class="flex flex-col items-center gap-2 py-12 text-center">
+          <p class="text-sm text-slate-500">Noch keine Transaktionen in diesem Monat.</p>
+          <button type="button" data-action="open-magic" class="text-sm font-semibold text-indigo-600">
+            Erste Ausgabe erfassen
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Mobile: nach Tagen gruppierte Kartenliste */}
+          {layout !== 'desktop' ? (
+            <div class="md:hidden">
+              <div class="divide-y divide-slate-100 rounded-2xl bg-white px-4 shadow-sm ring-1 ring-slate-200">
+                {groups.map((g) => (
+                  <div key={g.key}>
+                    <p class="pt-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{dayLabel(g.key, today)}</p>
+                    <ul class="divide-y divide-slate-100">
+                      {g.items.map((t) => (
+                        <TxCard t={t} />
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Desktop: Tabelle */}
+          {layout !== 'mobile' ? (
+            <div class="hidden overflow-x-auto md:block">
+              <table class="w-full text-sm">
+                <caption class="sr-only">Transaktionen im {monthLabel}</caption>
+                <thead>
+                  <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th scope="col" class="py-2 pr-3 font-medium">Datum</th>
+                    <th scope="col" class="py-2 pr-3 font-medium">Beschreibung</th>
+                    <th scope="col" class="py-2 pr-3 font-medium">Von</th>
+                    <th scope="col" class="py-2 pr-3 font-medium">Konto</th>
+                    <th scope="col" class="py-2 text-right font-medium">Betrag</th>
+                    <th scope="col" class="py-2 pl-3 text-right font-medium">Aktionen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {transactions.map((t) => (
+                    <TxRow t={t} />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </>
+      )}
+
+      {/* Daumenzonen-Bar: Monatsnavigation unten, fix über der BottomNav */}
+      <nav
+        aria-label="Monatsnavigation"
+        class="fixed inset-x-0 bottom-[4.5rem] z-20 flex items-center justify-between gap-2 border-t border-slate-200/70 bg-white/95 px-4 py-2.5 backdrop-blur md:hidden"
+        style="padding-bottom: calc(0.625rem + env(safe-area-inset-bottom, 0px))"
+      >
         <a
           href={'/dashboard?month=' + prevMonth}
-          title="Voriger Monat"
           aria-label="Voriger Monat"
-          class="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-lg text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          class="flex h-11 min-w-[88px] items-center justify-center gap-1 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-700 active:bg-slate-50"
         >
-          <span aria-hidden="true">‹</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" class="h-4 w-4" aria-hidden="true">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          <span class="sr-only">Voriger Monat</span>
+          <span class="hidden">Vorher</span>
         </a>
+        <span class="flex-1 text-center text-sm font-semibold text-slate-800">{monthLabel}</span>
         <a
           href={'/dashboard?month=' + nextMonth}
-          title="Nächster Monat"
           aria-label="Nächster Monat"
-          class="flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 text-lg text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+          class="flex h-11 min-w-[88px] items-center justify-center gap-1 rounded-full border border-slate-200 bg-white text-sm font-medium text-slate-700 active:bg-slate-50"
         >
-          <span aria-hidden="true">›</span>
+          <span class="hidden">Nächster</span>
+          <span class="sr-only">Nächster Monat</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" class="h-4 w-4" aria-hidden="true">
+            <path d="m9 18 6-6-6-6" />
+          </svg>
         </a>
       </nav>
-    </div>
-
-    <details class="mb-4">
-      <summary class="min-h-[44px] cursor-pointer select-none list-none py-2 text-sm font-medium text-indigo-600 [&::-webkit-details-marker]:hidden">
-        <span aria-hidden="true">➕</span> Eintrag manuell hinzufügen
-      </summary>
-      <form id="manual-form" class="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <label class="block">
-          <span class={LABEL_CLASS}>Betrag</span>
-          <input id="m-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
-        </label>
-        <label class="block">
-          <span class={LABEL_CLASS}>Beschreibung</span>
-          <input id="m-description" type="text" maxlength={200} placeholder="Beschreibung" autocomplete="off" class={INPUT_CLASS} />
-        </label>
-        <label class="block">
-          <span class={LABEL_CLASS}>Art</span>
-          <select id="m-type" class={INPUT_CLASS}>
-            <option value="expense" selected>Ausgabe</option>
-            <option value="income">Einnahme</option>
-          </select>
-        </label>
-        <label class="block">
-          <span class={LABEL_CLASS}>Bereich</span>
-          <select id="m-scope" class={INPUT_CLASS}>
-            <option value="shared" selected>Gemeinsam</option>
-            <option value="personal">Persönlich</option>
-          </select>
-        </label>
-        <label class="block">
-          <span class={LABEL_CLASS}>Konto</span>
-          <select id="m-paid-from" class={INPUT_CLASS}>
-            <option value="joint" selected>Gemeinschaftskonto</option>
-            <option value="private">Privatkonto</option>
-          </select>
-        </label>
-        <label class="block">
-          <span class={LABEL_CLASS}>Kategorie</span>
-          <CategorySelect id="m-category" />
-        </label>
-        <label class="block">
-          <span class={LABEL_CLASS}>Datum</span>
-          <input id="m-date" type="date" value={today} autocomplete="off" class={INPUT_CLASS} />
-        </label>
-        <button type="submit" class="btn-primary self-end sm:col-span-3 lg:col-span-4">
-          Speichern
-        </button>
-      </form>
-    </details>
-
-    {transactions.length === 0 ? (
-      <p class="py-8 text-center text-sm text-slate-500">Noch keine Transaktionen in diesem Monat.</p>
-    ) : (
-      <>
-        {/* Mobile: Kartenliste */}
-        {layout !== 'desktop' ? (
-          <ul class="divide-y divide-slate-100 md:hidden">
-            {transactions.map((t) => (
-              <TxCard t={t} />
-            ))}
-          </ul>
-        ) : null}
-        {/* Desktop: Tabelle */}
-        {layout !== 'mobile' ? (
-          <div class="hidden overflow-x-auto md:block">
-            <table class="w-full text-sm">
-              <caption class="sr-only">Transaktionen im {monthLabel}</caption>
-              <thead>
-                <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th scope="col" class="py-2 pr-3 font-medium">Datum</th>
-                  <th scope="col" class="py-2 pr-3 font-medium">Beschreibung</th>
-                  <th scope="col" class="py-2 pr-3 font-medium">Von</th>
-                  <th scope="col" class="py-2 pr-3 font-medium">Konto</th>
-                  <th scope="col" class="py-2 text-right font-medium">Betrag</th>
-                  <th scope="col" class="py-2 pl-3 text-right font-medium">Aktionen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((t) => (
-                  <TxRow t={t} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </>
-    )}
-  </section>
-);
+    </section>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /* Client-Script: Event-Delegation + Fragment-Refresh                  */
-/* (geteilte Helfer: /assets/app.js)                                   */
 /* ------------------------------------------------------------------ */
 
 const script = `
-// app.js wird mit defer geladen; Init-Logik daher in die __swInit-Queue
 window.__swInit = window.__swInit || [];
 window.__swInit.push(function () {
 // --- Ausgleichsformular: Empfänger-Auswahl ohne den Zahlenden ---
@@ -534,7 +581,7 @@ var EDITING_TIME = '';
 
 function openEditModal(tx) {
   EDITING_ID = tx.id;
-  EDITING_TIME = String(tx.date).slice(10); // Uhrzeit erhalten, nur Datum ist editierbar
+  EDITING_TIME = String(tx.date).slice(10);
   $('e-amount').value = tx.amount;
   $('e-type').value = tx.type;
   $('e-scope').value = tx.scope;
@@ -546,15 +593,16 @@ function openEditModal(tx) {
   setTimeout(function () { $('e-amount').focus(); }, 150);
 }
 
-// --- Kategorie-Dropdowns initial befüllen (nach Fragment-Swaps erneut) ---
 function syncAllCategoryOptions() {
   ['m-', 'e-'].forEach(function (prefix) {
     syncCategoryOptions(prefix, '');
   });
 }
 
-// Zentrale change-Delegation: Art-Wechsel baut Kategorie-Optionen neu auf,
-// Zahlungsänderung baut Empfängerliste neu auf.
+function updateManualPreview() {
+  updatePreview('m-', window.__MEMBERS || 1);
+}
+
 document.addEventListener('change', function (e) {
   if (!e.target) return;
   if (e.target.id === 's-from') rebuildRecipientOptions();
@@ -562,11 +610,17 @@ document.addEventListener('change', function (e) {
     var prefix = e.target.id.slice(0, e.target.id.indexOf('type'));
     syncCategoryOptions(prefix, '');
   }
+  if (/^m-(type|scope|paid-from)$/.test(e.target.id)) updateManualPreview();
+});
+
+document.addEventListener('input', function (e) {
+  if (e.target && e.target.id === 'm-amount') updateManualPreview();
 });
 
 syncAllCategoryOptions();
+swApplyDefaults('m-');
+updateManualPreview();
 
-// --- Partial Updates: nach Aktionen nur die betroffenen Bereiche tauschen ---
 async function refreshDashboard() {
   var month = window.__MONTH;
   if (!month || !$('summary-frag') || !$('tx-frag')) return false;
@@ -578,15 +632,16 @@ async function refreshDashboard() {
   $('summary-frag').innerHTML = parts[0];
   $('tx-frag').innerHTML = parts[1];
   syncAllCategoryOptions();
+  swApplyDefaults('m-');
+  updateManualPreview();
   return true;
 }
 
-// Magic-Sheet (shared.tsx) nutzt denselben Refresh-Pfad ohne Reload
 window.__afterMutation = function () {
   return afterMutation(refreshDashboard);
 };
 
-// --- Klick-Delegation (funktioniert auch nach Fragment-Swap) ---
+// --- Klick-Delegation ---
 document.addEventListener('click', async function (e) {
   var action = e.target.closest('[data-action]');
   if (action) {
@@ -623,6 +678,18 @@ document.addEventListener('click', async function (e) {
     return;
   }
 
+  var menu = e.target.closest('[data-card-menu]');
+  if (menu) {
+    var tx = JSON.parse(menu.getAttribute('data-tx'));
+    // Bearbeiten-/Löschen-Button des Aktions-Sheets mit den echten Werten füllen
+    var editSheetBtn = document.querySelector('#card-actions-overlay [data-edit]');
+    var delSheetBtn = document.querySelector('#card-actions-overlay [data-delete]');
+    if (editSheetBtn) editSheetBtn.setAttribute('data-tx', JSON.stringify(tx));
+    if (delSheetBtn) delSheetBtn.setAttribute('data-delete', tx.id);
+    openSheet('card-actions-overlay');
+    return;
+  }
+
   var editBtn = e.target.closest('[data-edit]');
   if (editBtn) {
     openEditModal(JSON.parse(editBtn.getAttribute('data-tx')));
@@ -642,11 +709,10 @@ document.addEventListener('click', async function (e) {
   }
 });
 
-// --- Submit-Delegation für alle Formulare ---
+// --- Submit-Delegation ---
 document.addEventListener('submit', async function (e) {
   var form = e.target;
   var btn = form.querySelector('button[type="submit"]');
-
   if (form.id === 'manual-form') {
     e.preventDefault();
     var amount = validAmount($('m-amount'));
@@ -664,9 +730,15 @@ document.addEventListener('submit', async function (e) {
     var unbusy = busy(btn);
     try {
       await postJson('/api/transactions', body);
+      swSaveDefaults(body.scope, body.paid_from);
+      $('m-amount').value = '';
+      $('m-description').value = '';
+      updateManualPreview();
+      showToast('Gespeichert ✓', 'ok');
       await afterMutation(refreshDashboard);
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
       unbusy();
     }
     return;
@@ -684,9 +756,11 @@ document.addEventListener('submit', async function (e) {
         to: $('s-to').value,
       });
       closeSheet('settlement-overlay');
+      showToast('Ausgleich gebucht ✓', 'ok');
       await afterMutation(refreshDashboard);
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
       unbusy();
     }
     return;
@@ -712,9 +786,11 @@ document.addEventListener('submit', async function (e) {
       await postJson('/api/transactions/' + EDITING_ID, body, 'PUT');
       EDITING_ID = null;
       closeSheet('edit-overlay');
+      showToast('Änderungen gespeichert ✓', 'ok');
       await afterMutation(refreshDashboard);
     } catch (err) {
       showToast(err.message, 'error');
+    } finally {
       unbusy();
     }
     return;
@@ -723,8 +799,6 @@ document.addEventListener('submit', async function (e) {
 });
 `;
 
-/* ------------------------------------------------------------------ */
-/* View                                                                */
 /* ------------------------------------------------------------------ */
 /* View                                                                */
 /* ------------------------------------------------------------------ */
@@ -751,24 +825,34 @@ export const DashboardView: FC<DashboardProps> = ({
   const recipientOptions: { id: number | 'me' | 'joint'; name: string }[] = [
     { id: 'me', name: `${userName} (du)` },
     ...others,
-    { id: 'joint', name: '🏦 Gemeinschaftskonto' },
+    { id: 'joint', name: 'Gemeinschaftskonto' },
   ];
   const payerOptions: { id: number | 'me'; name: string }[] = [{ id: 'me', name: 'Ich' }, ...others];
 
   return (
     <Layout title="Dashboard">
-      <main class="mx-auto max-w-6xl p-4 pb-28 sm:p-8 md:pb-8">
-        <header class="mb-8 flex items-center justify-between">
+      <main class="mx-auto max-w-6xl px-4 pb-44 pt-4 sm:px-8 md:pb-8">
+        {/* Schlanker Kontext-Kopf: kein Brand, nur Monat + Profil (Content-First) */}
+        <header class="mb-4 flex items-center justify-between md:hidden">
           <div>
-            <h1 class="text-xl font-bold tracking-tight sm:text-2xl">
-              <span aria-hidden="true">💳</span> SmartWallet
+            <h1 class="text-xl font-bold tracking-tight text-slate-900">{monthLabel}</h1>
+            <p class="text-xs text-slate-500">SmartWallet · {householdName}</p>
+          </div>
+          <UserChip userName={userName} />
+        </header>
+
+        {/* Desktop-Kopf: volle Navigation + Begrüßung */}
+        <header class="mb-8 hidden items-center justify-between md:flex">
+          <div>
+            <h1 class="text-2xl font-bold tracking-tight text-slate-900">
+              SmartWallet
             </h1>
-            <p class="hidden text-sm text-slate-500 sm:block">
+            <p class="text-sm text-slate-500">
               Hallo {userName}, hier ist der Überblick für „{householdName}“.
             </p>
           </div>
           <div class="flex items-center gap-3">
-            <nav class="hidden items-center gap-1 text-sm md:flex" aria-label="Hauptnavigation">
+            <nav class="flex items-center gap-1 text-sm" aria-label="Hauptnavigation">
               <a href="/dashboard" aria-current="page" class="rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-white/70">Dashboard</a>
               <a href={'/stats?month=' + month} class="rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-white/70">Statistik</a>
               <a
@@ -776,14 +860,14 @@ export const DashboardView: FC<DashboardProps> = ({
                 title="Wiederkehrende Zahlungen verwalten"
                 class="rounded-full bg-indigo-50 px-3 py-1.5 font-medium text-indigo-600 transition hover:bg-indigo-100"
               >
-                <span aria-hidden="true">🔁</span> Wiederkehrend ({recurringCount})
+                Wiederkehrend ({recurringCount})
               </a>
             </nav>
             <UserChip userName={userName} />
           </div>
         </header>
 
-        <div id="summary-frag">
+        <div id="summary-frag" class="md:mb-6">
           <SummaryCards
             members={members}
             monthLabel={monthLabel}
@@ -798,6 +882,36 @@ export const DashboardView: FC<DashboardProps> = ({
 
         <MagicSheet />
 
+        <div id="tx-frag">
+          <TxList monthLabel={monthLabel} prevMonth={prevMonth} nextMonth={nextMonth} transactions={transactions} today={today} />
+        </div>
+
+        {/* Transaktions-Aktionsliste (Bearbeiten/Löschen in der Daumenzone) */}
+        <div id="card-actions-overlay" class="fixed inset-0 z-50 hidden">
+          <div class="absolute inset-0 bg-slate-900/40" data-close="card-actions-overlay"></div>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="card-actions-title"
+            class="safe-bottom absolute inset-x-0 bottom-0 rounded-t-2xl bg-white p-5 shadow-xl"
+          >
+            <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200" aria-hidden="true"></div>
+            <h2 id="card-actions-title" class="mb-3 text-base font-semibold text-slate-800">Transaktion</h2>
+            <div class="grid gap-3">
+              <button type="button" data-edit class="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-indigo-600 text-base font-semibold text-white transition active:scale-95">
+                Bearbeiten
+              </button>
+              <button type="button" data-delete class="flex min-h-[52px] items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-base font-semibold text-red-600 transition active:scale-95">
+                Löschen
+              </button>
+              <button type="button" data-close="card-actions-overlay" class="min-h-[52px] rounded-2xl border border-slate-200 bg-white text-base font-semibold text-slate-600 transition active:scale-95">
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Ausgleichszahlung */}
         <div id="settlement-overlay" class="fixed inset-0 z-50 hidden">
           <div class="absolute inset-0 bg-slate-900/40" data-close="settlement-overlay"></div>
           <div
@@ -808,26 +922,22 @@ export const DashboardView: FC<DashboardProps> = ({
           >
             <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" aria-hidden="true"></div>
             <div class="mb-3 flex items-start justify-between">
-              <h2 id="settlement-title" class="text-sm font-medium text-slate-500">
-                <span aria-hidden="true">🤝</span> Ausgleichszahlung
-              </h2>
+              <h2 id="settlement-title" class="text-base font-semibold text-slate-800">Ausgleichszahlung</h2>
               <button
                 type="button"
                 data-close="settlement-overlay"
                 aria-label="Ausgleichszahlung schließen"
-                class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500"
               >
-                <span aria-hidden="true">✕</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" class="h-5 w-5" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
               </button>
             </div>
-            <form id="settlement-form" class="grid items-end gap-3 sm:grid-cols-4">
+            <form id="settlement-form" class="grid gap-3 sm:grid-cols-4">
               <div>
                 <label for="s-from" class="mb-1 block text-xs text-slate-500">Zahlender</label>
-                <select
-                  id="s-from"
-                  class={INPUT_CLASS}
-                  data-members={JSON.stringify(payerOptions)}
-                >
+                <select id="s-from" class={INPUT_CLASS} data-members={JSON.stringify(payerOptions)}>
                   {payerOptions.map((m) => (
                     <option value={m.id === 'me' ? 'me' : m.id} selected={m.id === 'me'}>
                       {m.name}
@@ -837,23 +947,20 @@ export const DashboardView: FC<DashboardProps> = ({
               </div>
               <div>
                 <label for="s-to" class="mb-1 block text-xs text-slate-500">Empfänger</label>
-                <select
-                  id="s-to"
-                  class={INPUT_CLASS}
-                  data-members={JSON.stringify(recipientOptions)}
-                ></select>
+                <select id="s-to" class={INPUT_CLASS} data-members={JSON.stringify(recipientOptions)}></select>
               </div>
               <div>
                 <label for="s-amount" class="mb-1 block text-xs text-slate-500">Betrag (€)</label>
                 <input id="s-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="z. B. 30" class={INPUT_CLASS} />
               </div>
-              <button type="submit" class="btn-primary">
+              <button type="submit" class="btn-primary w-full">
                 Ausgleich buchen
               </button>
             </form>
           </div>
         </div>
 
+        {/* Bearbeiten */}
         <div id="edit-overlay" class="fixed inset-0 z-50 hidden">
           <div class="absolute inset-0 bg-slate-900/40" data-close="edit-overlay"></div>
           <div
@@ -864,16 +971,16 @@ export const DashboardView: FC<DashboardProps> = ({
           >
             <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200 sm:hidden" aria-hidden="true"></div>
             <div class="mb-3 flex items-start justify-between">
-              <h2 id="edit-title" class="text-sm font-medium text-slate-500">
-                <span aria-hidden="true">✏️</span> Transaktion bearbeiten
-              </h2>
+              <h2 id="edit-title" class="text-base font-semibold text-slate-800">Transaktion bearbeiten</h2>
               <button
                 type="button"
                 data-close="edit-overlay"
                 aria-label="Bearbeiten abbrechen"
-                class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-500"
+                class="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500"
               >
-                <span aria-hidden="true">✕</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" class="h-5 w-5" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
               </button>
             </div>
             <form id="edit-form" class="grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -916,7 +1023,7 @@ export const DashboardView: FC<DashboardProps> = ({
                 <input id="e-date" type="date" autocomplete="off" class={INPUT_CLASS} />
               </label>
               <div class="flex gap-2 sm:col-span-3 lg:col-span-4">
-                <button type="submit" class="btn-primary">
+                <button type="submit" class="btn-primary flex-1">
                   Änderungen speichern
                 </button>
                 <button type="button" data-close="edit-overlay" class="btn-secondary">
@@ -926,17 +1033,11 @@ export const DashboardView: FC<DashboardProps> = ({
             </form>
           </div>
         </div>
-
-        <div id="tx-frag">
-          <TxList monthLabel={monthLabel} prevMonth={prevMonth} nextMonth={nextMonth} transactions={transactions} today={today} />
-        </div>
-
       </main>
 
-      {/* Mobile Bottom-Navigation – „Hinzufügen“ öffnet das Magic-Sheet */}
       <BottomNav page="dashboard" month={month} />
 
-      <script dangerouslySetInnerHTML={{ __html: 'window.__MONTH = "' + month + '";' }} />
+      <script dangerouslySetInnerHTML={{ __html: 'window.__MONTH = "' + month + '";window.__MEMBERS = ' + JSON.stringify(members.length) + ';' }} />
       <script dangerouslySetInnerHTML={{ __html: script }} />
     </Layout>
   );
