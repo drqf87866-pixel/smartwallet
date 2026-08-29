@@ -14,7 +14,7 @@ crons = ["0 3 * * *"]
 [assets]
 directory = "./public"
 html_handling = "none"
-run_worker_first = ["/api/*", "/", "/login", "/register", "/settings", "/dashboard", "/dashboard/*"]
+run_worker_first = ["/api/*", "/", "/login", "/register", "/settings", "/dashboard", "/dashboard/*", "/stats"]
 
 # D1-Bindung. WICHTIG: Der Bindungsname muss exakt "DB" bleiben – der Code
 # liest c.env.DB. Nur die database_id ersetzen, nichts umbenennen!

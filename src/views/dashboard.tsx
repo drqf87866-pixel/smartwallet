@@ -1,6 +1,7 @@
 import type { FC } from 'hono/jsx';
 import type { TransactionAccount, TransactionScope, TransactionType } from '../types';
 import { frequencyLabel } from '../lib/recurring';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../lib/categories';
 import { Layout } from './layout';
 
 export type DashboardTx = {
@@ -32,6 +33,14 @@ export type RecurringRuleView = {
   end_date: string | null;
   active: number;
   next_due: string | null;
+};
+
+/** Budget-Zeile: effektives Budget des Monats ('default' oder 'YYYY-MM') + Verbrauch. */
+export type BudgetRow = {
+  category: string;
+  budget: number | null;
+  origin: 'default' | string;
+  spent: number;
 };
 
 export type DebtRow = {
@@ -69,7 +78,7 @@ export type DashboardProps = SummaryCardsProps & TxListProps & {
   householdName: string;
   month: string;
   rules: RecurringRuleView[];
-  today: string;
+  budgetRows: BudgetRow[];
 };
 
 const eur = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
@@ -83,6 +92,18 @@ const fmtDate = (dateOnly: string) => dateFmt.format(new Date(dateOnly + 'T12:00
 
 const INPUT_CLASS =
   'w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200';
+
+const LABEL_CLASS = 'mb-1 block text-xs text-slate-500';
+
+/** Kategorie-Dropdown – Optionen werden per JS je nach Art (Ausgabe/Einnahme) befüllt. */
+const CategorySelect: FC<{ id: string }> = ({ id }) => (
+  <select
+    id={id}
+    class={INPUT_CLASS}
+    data-expense-cats={JSON.stringify(EXPENSE_CATEGORIES)}
+    data-income-cats={JSON.stringify(INCOME_CATEGORIES)}
+  />
+);
 
 const BADGE_STYLES = {
   joint: 'bg-indigo-50 text-indigo-600',
@@ -431,26 +452,47 @@ export const TxList: FC<TxListProps & { layout?: 'mobile' | 'desktop' }> = ({
       <summary class="min-h-[44px] cursor-pointer select-none py-2 text-sm font-medium text-indigo-600">
         ➕ Eintrag manuell hinzufügen
       </summary>
-      <form id="manual-form" class="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
-        <input id="m-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
-        <select id="m-type" class={INPUT_CLASS}>
-          <option value="expense" selected>Ausgabe</option>
-          <option value="income">Einnahme</option>
-        </select>
-        <select id="m-scope" class={INPUT_CLASS}>
-          <option value="shared" selected>Gemeinsam</option>
-          <option value="personal">Persönlich</option>
-        </select>
-        <select id="m-paid-from" class={INPUT_CLASS}>
-          <option value="joint" selected>Gemeinschaftskonto</option>
-          <option value="private">Privatkonto</option>
-        </select>
-        <input id="m-category" type="text" maxlength={50} placeholder="Kategorie" class={INPUT_CLASS} />
-        <input id="m-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
-        <input id="m-date" type="date" value={today} class={INPUT_CLASS} />
+      <form id="manual-form" class="mt-3 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <label class="block">
+          <span class={LABEL_CLASS}>Betrag</span>
+          <input id="m-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Art</span>
+          <select id="m-type" class={INPUT_CLASS}>
+            <option value="expense" selected>Ausgabe</option>
+            <option value="income">Einnahme</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Bereich</span>
+          <select id="m-scope" class={INPUT_CLASS}>
+            <option value="shared" selected>Gemeinsam</option>
+            <option value="personal">Persönlich</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Konto</span>
+          <select id="m-paid-from" class={INPUT_CLASS}>
+            <option value="joint" selected>Gemeinschaftskonto</option>
+            <option value="private">Privatkonto</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Kategorie</span>
+          <CategorySelect id="m-category" />
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Beschreibung</span>
+          <input id="m-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Datum</span>
+          <input id="m-date" type="date" value={today} class={INPUT_CLASS} />
+        </label>
         <button
           type="submit"
-          class="min-h-[44px] rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-900 sm:col-span-3 lg:col-span-7"
+          class="min-h-[44px] self-end rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-900 sm:col-span-3 lg:col-span-4"
         >
           Speichern
         </button>
@@ -591,39 +633,67 @@ export const RecurringSection: FC<{ rules: RecurringRuleView[]; today: string }>
         <summary class="min-h-[40px] cursor-pointer select-none py-2 text-sm font-medium text-indigo-600">
           ➕ Wiederkehrende Zahlung anlegen
         </summary>
-        <form id="recurring-form" class="mt-2 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <input id="r-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
-          <select id="r-type" class={INPUT_CLASS}>
-            <option value="expense" selected>Ausgabe</option>
-            <option value="income">Einnahme</option>
-          </select>
-          <select id="r-scope" class={INPUT_CLASS}>
-            <option value="shared" selected>Gemeinsam</option>
-            <option value="personal">Persönlich</option>
-          </select>
-          <select id="r-paid-from" class={INPUT_CLASS}>
-            <option value="joint" selected>Gemeinschaftskonto</option>
-            <option value="private">Privatkonto</option>
-          </select>
-          <input id="r-category" type="text" maxlength={50} placeholder="Kategorie" class={INPUT_CLASS} />
-          <input id="r-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
-          <select id="r-frequency" class={INPUT_CLASS}>
-            {FREQUENCY_OPTIONS.map((opt) => (
-              <option value={opt.value} selected={opt.value === 'monthly'}>{opt.label}</option>
-            ))}
-          </select>
-          <input id="r-day" type="number" min="1" max="31" required placeholder={DAY_HINTS.monthly} class={INPUT_CLASS} />
-          <select id="r-month" class={INPUT_CLASS + ' hidden'}>
-            {MONTH_OPTIONS.map((name, index) => (
-              <option value={index + 1}>{name}</option>
-            ))}
-          </select>
-          <label for="r-start" class="sr-only">Startdatum</label>
-          <input id="r-start" type="date" value={today} required class={INPUT_CLASS} />
-          <input id="r-end" type="date" class={INPUT_CLASS} />
+        <form id="recurring-form" class="mt-2 grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <label class="block">
+            <span class={LABEL_CLASS}>Betrag</span>
+            <input id="r-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Art</span>
+            <select id="r-type" class={INPUT_CLASS}>
+              <option value="expense" selected>Ausgabe</option>
+              <option value="income">Einnahme</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Bereich</span>
+            <select id="r-scope" class={INPUT_CLASS}>
+              <option value="shared" selected>Gemeinsam</option>
+              <option value="personal">Persönlich</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Konto</span>
+            <select id="r-paid-from" class={INPUT_CLASS}>
+              <option value="joint" selected>Gemeinschaftskonto</option>
+              <option value="private">Privatkonto</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Kategorie</span>
+            <CategorySelect id="r-category" />
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Beschreibung</span>
+            <input id="r-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Rhythmus</span>
+            <select id="r-frequency" class={INPUT_CLASS}>
+              {FREQUENCY_OPTIONS.map((opt) => (
+                <option value={opt.value} selected={opt.value === 'monthly'}>{opt.label}</option>
+              ))}
+            </select>
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Tag</span>
+            <input id="r-day" type="number" min="1" max="31" required placeholder={DAY_HINTS.monthly} class={INPUT_CLASS} />
+          </label>
+          <label id="r-month-label" for="r-month" class="block hidden">
+            <span class={LABEL_CLASS}>Monat (jährlich)</span>
+            <select id="r-month" class={INPUT_CLASS}>
+              {MONTH_OPTIONS.map((name, index) => (
+                <option value={index + 1}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <label class="block">
+            <span class={LABEL_CLASS}>Fällig am</span>
+            <input id="r-due" type="date" value={today} required class={INPUT_CLASS} />
+          </label>
           <button
             type="submit"
-            class="min-h-[44px] rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-900 sm:col-span-3 lg:col-span-6"
+            class="min-h-[44px] self-end rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-900 sm:col-span-3 lg:col-span-5"
           >
             Regel speichern
           </button>
@@ -655,36 +725,65 @@ const RecurringEditOverlay: FC = () => (
           ✕
         </button>
       </div>
-      <form id="recurring-edit-form" class="grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <input id="re-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
-        <select id="re-type" class={INPUT_CLASS}>
-          <option value="expense">Ausgabe</option>
-          <option value="income">Einnahme</option>
-        </select>
-        <select id="re-scope" class={INPUT_CLASS}>
-          <option value="shared">Gemeinsam</option>
-          <option value="personal">Persönlich</option>
-        </select>
-        <select id="re-paid-from" class={INPUT_CLASS}>
-          <option value="joint">Gemeinschaftskonto</option>
-          <option value="private">Privatkonto</option>
-        </select>
-        <input id="re-category" type="text" maxlength={50} placeholder="Kategorie" class={INPUT_CLASS} />
-        <input id="re-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
-        <select id="re-frequency" class={INPUT_CLASS}>
-          {FREQUENCY_OPTIONS.map((opt) => (
-            <option value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <input id="re-day" type="number" min="1" max="31" required placeholder={DAY_HINTS.monthly} class={INPUT_CLASS} />
-        <select id="re-month" class={INPUT_CLASS + ' hidden'}>
-          {MONTH_OPTIONS.map((name, index) => (
-            <option value={index + 1}>{name}</option>
-          ))}
-        </select>
-        <input id="re-start" type="date" required class={INPUT_CLASS} />
-        <input id="re-end" type="date" class={INPUT_CLASS} />
-        <div class="flex gap-2 sm:col-span-3 lg:col-span-6">
+      <form id="recurring-edit-form" class="grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <label class="block">
+          <span class={LABEL_CLASS}>Betrag</span>
+          <input id="re-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Art</span>
+          <select id="re-type" class={INPUT_CLASS}>
+            <option value="expense">Ausgabe</option>
+            <option value="income">Einnahme</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Bereich</span>
+          <select id="re-scope" class={INPUT_CLASS}>
+            <option value="shared">Gemeinsam</option>
+            <option value="personal">Persönlich</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Konto</span>
+          <select id="re-paid-from" class={INPUT_CLASS}>
+            <option value="joint">Gemeinschaftskonto</option>
+            <option value="private">Privatkonto</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Kategorie</span>
+          <CategorySelect id="re-category" />
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Beschreibung</span>
+          <input id="re-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Rhythmus</span>
+          <select id="re-frequency" class={INPUT_CLASS}>
+            {FREQUENCY_OPTIONS.map((opt) => (
+              <option value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Tag</span>
+          <input id="re-day" type="number" min="1" max="31" required placeholder={DAY_HINTS.monthly} class={INPUT_CLASS} />
+        </label>
+        <label id="re-month-label" for="re-month" class="block hidden">
+          <span class={LABEL_CLASS}>Monat (jährlich)</span>
+          <select id="re-month" class={INPUT_CLASS}>
+            {MONTH_OPTIONS.map((name, index) => (
+              <option value={index + 1}>{name}</option>
+            ))}
+          </select>
+        </label>
+        <label class="block">
+          <span class={LABEL_CLASS}>Fällig am</span>
+          <input id="re-due" type="date" required class={INPUT_CLASS} />
+        </label>
+        <div class="flex gap-2 sm:col-span-3 lg:col-span-5">
           <button type="submit" class="min-h-[44px] rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
             Änderungen speichern
           </button>
@@ -700,6 +799,129 @@ const RecurringEditOverlay: FC = () => (
     </div>
   </div>
 );
+
+/* ------------------------------------------------------------------ */
+/* Budgets: Sektion mit Fortschrittsbalken + Inline-Edit                */
+/* ------------------------------------------------------------------ */
+
+const budgetBarColor = (pct: number) =>
+  pct <= 80 ? 'bg-emerald-500' : pct <= 100 ? 'bg-amber-500' : 'bg-red-500';
+const budgetTextColor = (pct: number) =>
+  pct <= 80 ? 'text-emerald-600' : pct <= 100 ? 'text-amber-600' : 'text-red-600';
+
+/** Sektion „Budgets“ – eigenes Fragment (id budgets-frag). */
+export const BudgetsSection: FC<{ month: string; rows: BudgetRow[] }> = ({ month, rows }) => {
+  const budgeted = rows.filter((row) => row.budget !== null);
+  const totalBudget = budgeted.reduce((sum, row) => sum + (row.budget ?? 0), 0);
+  const totalSpent = budgeted.reduce((sum, row) => sum + row.spent, 0);
+  const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
+
+  return (
+    <section class="mb-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <details>
+        <summary class="flex min-h-[44px] cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+          <h2 class="text-sm font-medium text-slate-500">
+            🎯 Budgets ({budgeted.length})
+          </h2>
+          <span class="text-slate-400">▾</span>
+        </summary>
+
+        {rows.length === 0 ? (
+          <p class="py-2 text-sm text-slate-400">
+            Noch keine Ausgaben oder Budgets in diesem Monat – lege unten ein Budget an.
+          </p>
+        ) : (
+          <ul class="space-y-3">
+            {rows.map((row) => {
+              const pct = row.budget ? Math.min(Math.round((row.spent / row.budget) * 100), 999) : 0;
+              return (
+                <li>
+                  <form data-budget-form data-budget-category={row.category} data-budget-origin={row.origin} class="flex items-center gap-2">
+                    <div class="min-w-0 flex-1">
+                      <p class="flex flex-wrap items-baseline justify-between gap-x-2 text-sm">
+                        <span class="truncate font-medium text-slate-700">{row.category}</span>
+                        <span class="whitespace-nowrap text-xs text-slate-400">
+                          {fmt(row.spent)}
+                          {row.budget !== null ? (
+                            <> / {fmt(row.budget)} ·{' '}
+                              <span class={'font-medium ' + budgetTextColor(pct)}>{pct} %</span>
+                            </>
+                          ) : (
+                            ' · kein Budget'
+                          )}
+                        </span>
+                      </p>
+                      <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        {row.budget !== null ? (
+                          <div
+                            class={'h-full rounded-full ' + budgetBarColor(pct)}
+                            style={'width:' + Math.min(pct, 100) + '%'}
+                          ></div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <label class="sr-only" for={'b-amount-' + row.category}>Budget</label>
+                    <input
+                      id={'b-amount-' + row.category}
+                      type="number"
+                      inputmode="decimal"
+                      step="0.01"
+                      min="0"
+                      value={row.budget !== null ? row.budget : ''}
+                      placeholder="€"
+                      class="w-24 shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-right text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    />
+                    <button
+                      type="submit"
+                      title="Budget speichern"
+                      class="h-8 w-8 shrink-0 rounded border border-indigo-200 bg-indigo-50 text-sm font-medium text-indigo-600 hover:bg-indigo-100"
+                    >
+                      ✓
+                    </button>
+                  </form>
+                  {row.budget !== null && row.origin === 'default' ? (
+                    <p class="mt-0.5 text-[10px] text-slate-400">gilt für jeden Monat</p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {budgeted.length > 0 ? (
+          <p class="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-400">
+            Insgesamt: {fmt(totalSpent)} von {fmt(totalBudget)} ·{' '}
+            <span class={'font-medium ' + budgetTextColor(totalPct)}>{totalPct} %</span>
+          </p>
+        ) : null}
+
+        <form id="budget-new-form" class="mt-3 flex items-end gap-2 border-t border-slate-100 pt-3">
+          <div class="min-w-0 flex-1">
+            <label for="b-new-category" class="mb-1 block text-xs text-slate-500">Neues Budget</label>
+            <select id="b-new-category" class={INPUT_CLASS}>
+              {EXPENSE_CATEGORIES.map((cat) => (
+                <option value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+          <div class="w-28 shrink-0">
+            <label for="b-new-amount" class="mb-1 block text-xs text-slate-500">Betrag (€)</label>
+            <input id="b-new-amount" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="z. B. 200" class={INPUT_CLASS} />
+          </div>
+          <button
+            type="submit"
+            class="min-h-[44px] shrink-0 rounded-lg bg-slate-800 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-900"
+          >
+            Setzen
+          </button>
+        </form>
+        <p class="mt-2 text-[10px] text-slate-400">
+          Gespeichert wird für den angezeigten Monat ({month}); leeres Feld + ✓ löscht das Budget (bei Standard-Budgets für alle Monate).
+        </p>
+      </details>
+    </section>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /* Client-Script: Event-Delegation + Fragment-Refresh                  */
@@ -760,10 +982,15 @@ async function refreshDashboard() {
     $('recurring-frag')
       ? fetchFragment('/dashboard/fragments/recurring')
       : Promise.resolve(null),
+    $('budgets-frag')
+      ? fetchFragment('/dashboard/fragments/budgets?month=' + month)
+      : Promise.resolve(null),
   ]);
   $('summary-frag').innerHTML = parts[0];
   $('tx-frag').innerHTML = parts[1];
   if (parts[2] !== null) $('recurring-frag').innerHTML = parts[2];
+  if (parts[3] !== null) $('budgets-frag').innerHTML = parts[3];
+  syncAllCategoryOptions();
   return true;
 }
 
@@ -830,7 +1057,7 @@ function openEditModal(tx) {
   $('e-type').value = tx.type;
   $('e-scope').value = tx.scope;
   $('e-paid-from').value = tx.paid_from;
-  $('e-category').value = tx.category;
+  syncCategoryOptions('e-', tx.category);
   $('e-description').value = tx.description;
   $('e-date').value = String(tx.date).slice(0, 10);
   openSheet('edit-overlay');
@@ -847,22 +1074,63 @@ function fillRecurringForm(prefix, rule) {
   $(prefix + 'type').value = rule.type;
   $(prefix + 'scope').value = rule.scope;
   $(prefix + 'paid-from').value = rule.paid_from;
-  $(prefix + 'category').value = rule.category;
+  syncCategoryOptions(prefix, rule.category);
   $(prefix + 'description').value = rule.description;
   $(prefix + 'frequency').value = rule.frequency;
   $(prefix + 'day').value = rule.day;
   if (rule.month) $(prefix + 'month').value = String(rule.month);
-  $(prefix + 'start').value = rule.start_date;
-  $(prefix + 'end').value = rule.end_date || '';
+  $(prefix + 'due').value = rule.start_date;
   syncFrequencyFields(prefix);
+}
+
+// --- Kategorie-Dropdowns: Optionen je nach Art (Ausgabe/Einnahme/Überweisung) ---
+function syncCategoryOptions(prefix, keepValue) {
+  var typeSel = $(prefix + 'type');
+  var catSel = $(prefix + 'category');
+  if (!typeSel || !catSel) return;
+  var desired = (keepValue === undefined ? catSel.value : keepValue) || '';
+  var isTransfer = typeSel.value === 'transfer';
+  var isIncome = typeSel.value === 'income';
+  if (isTransfer) desired = 'Überweisung';
+  var cats = JSON.parse(catSel.getAttribute(isIncome || isTransfer ? 'data-income-cats' : 'data-expense-cats'));
+  if (isTransfer) cats = ['Überweisung'];
+  catSel.disabled = isTransfer;
+  catSel.innerHTML = '';
+  if (desired && cats.indexOf(desired) === -1) {
+    var extra = document.createElement('option');
+    extra.value = desired;
+    extra.textContent = desired;
+    catSel.appendChild(extra);
+  }
+  cats.forEach(function (c) {
+    var opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    catSel.appendChild(opt);
+  });
+  if (desired) {
+    catSel.value = desired;
+  } else {
+    var fallback = cats.indexOf('Sonstiges') !== -1 ? 'Sonstiges' : (cats[0] || '');
+    if (fallback) catSel.value = fallback;
+  }
+}
+
+function syncAllCategoryOptions() {
+  ['m-', 'e-', 'r-', 're-'].forEach(function (prefix) {
+    syncCategoryOptions(prefix, '');
+  });
 }
 
 // Rhythmus-Wechsel: Monat nur bei yearly, Tag-Hinweis je Rhythmus
 function syncFrequencyFields(prefix) {
   var freq = $(prefix + 'frequency').value;
+  var monthLabel = $(prefix + 'month-label');
   var monthSelect = $(prefix + 'month');
   var dayInput = $(prefix + 'day');
-  if (monthSelect) {
+  if (monthLabel) {
+    monthLabel.classList.toggle('hidden', freq !== 'yearly');
+  } else if (monthSelect) {
     monthSelect.classList.toggle('hidden', freq !== 'yearly');
   }
   if (dayInput) {
@@ -877,6 +1145,17 @@ function syncFrequencyFields(prefix) {
     if (e.target && e.target.id === prefix + 'frequency') syncFrequencyFields(prefix);
   });
 });
+
+// Art-Wechsel: Kategorie-Optionen neu befüllen (Ausgabe ↔ Einnahme ↔ Überweisung)
+document.addEventListener('change', function (e) {
+  if (e.target && /^(m|e|r|re)-type$/.test(e.target.id)) {
+    var prefix = e.target.id.slice(0, e.target.id.indexOf('type'));
+    syncCategoryOptions(prefix, '');
+  }
+});
+
+// Initial befüllen (nach Fragment-Swaps ruft refreshDashboard syncAllCategoryOptions erneut auf)
+syncAllCategoryOptions();
 
 document.addEventListener('click', async function (e) {
   var pill = e.target.closest('[data-paid-from]');
@@ -1003,6 +1282,52 @@ document.addEventListener('submit', async function (e) {
   var form = e.target;
   var btn = form.querySelector('button[type="submit"]');
 
+  // Budget-Zeilen: Amount speichern (leer = Budget löschen)
+  if (form.hasAttribute('data-budget-form')) {
+    e.preventDefault();
+    var bCategory = form.getAttribute('data-budget-category');
+    // Zeile zeigt ein Default-Budget → Löschen entfernt den Default-Eintrag,
+    // sonst wird der Override des angezeigten Monats gelöscht
+    var bMonth = form.getAttribute('data-budget-origin') === 'default' ? 'default' : window.__MONTH;
+    var bInput = form.querySelector('input[type="number"]');
+    var bUnbusy = busy(btn);
+    try {
+      await postJson('/api/budgets', {
+        month: bMonth,
+        category: bCategory,
+        amount: bInput.value === '' ? 0 : parseFloat(bInput.value),
+      }, 'PUT');
+      await afterMutation();
+    } catch (err) {
+      showToast(err.message, 'error');
+      bUnbusy();
+    }
+    return;
+  }
+
+  if (form.id === 'budget-new-form') {
+    e.preventDefault();
+    var nAmount = parseFloat($('b-new-amount').value);
+    if (!nAmount || nAmount <= 0) {
+      showToast('Bitte einen gültigen Betrag eingeben', 'error');
+      return;
+    }
+    var nUnbusy = busy(btn);
+    try {
+      await postJson('/api/budgets', {
+        month: window.__MONTH,
+        category: $('b-new-category').value,
+        amount: nAmount,
+      }, 'PUT');
+      $('b-new-amount').value = '';
+      await afterMutation();
+    } catch (err) {
+      showToast(err.message, 'error');
+      nUnbusy();
+    }
+    return;
+  }
+
   if (form.id === 'magic-form') {
     e.preventDefault();
     var input = $('magic-text');
@@ -1089,10 +1414,9 @@ document.addEventListener('submit', async function (e) {
       description: $('r-description').value,
       frequency: $('r-frequency').value,
       day: parseInt($('r-day').value, 10),
-      start_date: $('r-start').value,
+      start_date: $('r-due').value,
     };
     if (rBody.frequency === 'yearly') rBody.month = parseInt($('r-month').value, 10);
-    if ($('r-end').value) rBody.end_date = $('r-end').value;
     var rUnbusy = busy(btn);
     try {
       await postJson('/api/recurring', rBody);
@@ -1121,10 +1445,9 @@ document.addEventListener('submit', async function (e) {
       description: $('re-description').value,
       frequency: $('re-frequency').value,
       day: parseInt($('re-day').value, 10),
-      start_date: $('re-start').value,
+      start_date: $('re-due').value,
     };
     if (reBody.frequency === 'yearly') reBody.month = parseInt($('re-month').value, 10);
-    if ($('re-end').value) reBody.end_date = $('re-end').value;
     var reUnbusy = busy(btn);
     try {
       await postJson('/api/recurring/' + REC_EDITING_ID, reBody, 'PUT');
@@ -1215,6 +1538,7 @@ export const DashboardView: FC<DashboardProps> = ({
   transactions,
   today,
   rules,
+  budgetRows,
 }) => {
   const others = members.filter((m) => m.name !== userName);
   const recipientOptions: { id: number | 'me' | 'joint'; name: string }[] = [
@@ -1239,16 +1563,22 @@ export const DashboardView: FC<DashboardProps> = ({
               Hallo {userName}, hier ist der Überblick für „{householdName}“.
             </p>
           </div>
-          <a
-            href="/settings"
-            title="Einstellungen"
-            class="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
-          >
-            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
-              {userName.charAt(0).toUpperCase()}
-            </span>
-            <span class="hidden text-sm font-medium text-slate-700 sm:inline">{userName}</span>
-          </a>
+          <div class="flex items-center gap-3">
+            <nav class="hidden items-center gap-1 text-sm md:flex">
+              <a href="/dashboard" class="rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-white/70">Dashboard</a>
+              <a href={'/stats?month=' + month} class="rounded-full px-3 py-1.5 font-medium text-slate-600 hover:bg-white/70">Statistik</a>
+            </nav>
+            <a
+              href="/settings"
+              title="Einstellungen"
+              class="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-3 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-50"
+            >
+              <span class="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+                {userName.charAt(0).toUpperCase()}
+              </span>
+              <span class="hidden text-sm font-medium text-slate-700 sm:inline">{userName}</span>
+            </a>
+          </div>
         </header>
 
         <div id="summary-frag">
@@ -1381,25 +1711,46 @@ export const DashboardView: FC<DashboardProps> = ({
                 ✕
               </button>
             </div>
-            <form id="edit-form" class="grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-7">
-              <input id="e-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
-              <select id="e-type" class={INPUT_CLASS}>
-                <option value="expense">Ausgabe</option>
-                <option value="income">Einnahme</option>
-                <option value="transfer">Überweisung</option>
-              </select>
-              <select id="e-scope" class={INPUT_CLASS}>
-                <option value="shared">Gemeinsam</option>
-                <option value="personal">Persönlich</option>
-              </select>
-              <select id="e-paid-from" class={INPUT_CLASS}>
-                <option value="joint">Gemeinschaftskonto</option>
-                <option value="private">Privatkonto</option>
-              </select>
-              <input id="e-category" type="text" maxlength={50} placeholder="Kategorie" class={INPUT_CLASS} />
-              <input id="e-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
-              <input id="e-date" type="date" class={INPUT_CLASS} />
-              <div class="flex gap-2 sm:col-span-3 lg:col-span-7">
+            <form id="edit-form" class="grid items-end gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <label class="block">
+                <span class={LABEL_CLASS}>Betrag</span>
+                <input id="e-amount" type="number" inputmode="decimal" step="0.01" min="0.01" required placeholder="Betrag" class={INPUT_CLASS} />
+              </label>
+              <label class="block">
+                <span class={LABEL_CLASS}>Art</span>
+                <select id="e-type" class={INPUT_CLASS}>
+                  <option value="expense">Ausgabe</option>
+                  <option value="income">Einnahme</option>
+                  <option value="transfer">Überweisung</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class={LABEL_CLASS}>Bereich</span>
+                <select id="e-scope" class={INPUT_CLASS}>
+                  <option value="shared">Gemeinsam</option>
+                  <option value="personal">Persönlich</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class={LABEL_CLASS}>Konto</span>
+                <select id="e-paid-from" class={INPUT_CLASS}>
+                  <option value="joint">Gemeinschaftskonto</option>
+                  <option value="private">Privatkonto</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class={LABEL_CLASS}>Kategorie</span>
+                <CategorySelect id="e-category" />
+              </label>
+              <label class="block">
+                <span class={LABEL_CLASS}>Beschreibung</span>
+                <input id="e-description" type="text" maxlength={200} placeholder="Beschreibung" class={INPUT_CLASS} />
+              </label>
+              <label class="block">
+                <span class={LABEL_CLASS}>Datum</span>
+                <input id="e-date" type="date" class={INPUT_CLASS} />
+              </label>
+              <div class="flex gap-2 sm:col-span-3 lg:col-span-4">
                 <button type="submit" class="min-h-[44px] rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
                   Änderungen speichern
                 </button>
@@ -1419,6 +1770,10 @@ export const DashboardView: FC<DashboardProps> = ({
           <RecurringSection rules={rules} today={today} />
         </div>
 
+        <div id="budgets-frag">
+          <BudgetsSection month={month} rows={budgetRows} />
+        </div>
+
         <RecurringEditOverlay />
 
         <div id="tx-frag">
@@ -1432,10 +1787,14 @@ export const DashboardView: FC<DashboardProps> = ({
         class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden"
         style="padding-bottom: env(safe-area-inset-bottom)"
       >
-        <div class="grid grid-cols-2">
+        <div class="grid grid-cols-3">
           <a href="/dashboard" class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-indigo-600">
             <span class="text-lg leading-none">🏠</span>
             Dashboard
+          </a>
+          <a href={'/stats?month=' + month} class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600">
+            <span class="text-lg leading-none">📊</span>
+            Statistik
           </a>
           <button
             type="button"

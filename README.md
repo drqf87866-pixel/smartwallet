@@ -64,6 +64,8 @@ curl -X POST http://localhost:8787/api/dev/seed
 | `/api/settlements`    | POST    | JWT  | Ausgleichszahlung zwischen den Partnern (`payer: me`/`partner`)  |
 | `/api/recurring`      | GET/POST| JWT  | Wiederkehrende Zahlungen: Regeln listen/anlegen                  |
 | `/api/recurring/:id`  | PUT/DEL | JWT  | Regel ändern/pausieren (`{active}`) / löschen (Buchungen bleiben)|
+| `/api/budgets`        | GET/PUT | PUT: JWT | Budgets je Kategorie (`month: 'default'` oder `YYYY-MM`)     |
+| `/stats`              | GET     | JWT  | Statistik: Kategorien-Donut, 12-Monats-Verlauf, Top-Ausgaben     |
 
 ## Registrierung & Haushalte
 
@@ -95,6 +97,35 @@ Zwei (oder mehr) Privatkonten + ein Gemeinschaftskonto pro Haushalt. Jede Transa
 
 - Monat navigierbar über `?month=YYYY-MM` (Pfeile ‹ ›) – betrifft Ausgaben-Karte und Historie
 - Schulden-Karte rechnet über alle Monate (wegen Ausgleichszahlungen)
+
+## Kategorien
+
+Standard-Kategorien liegen zentral in `src/lib/categories.ts` (Ausgaben: Lebensmittel,
+Restaurant, Café, Miete, Strom, Internet, Streaming, Haushalt, Drogerie, Gesundheit,
+Kleidung, Freizeit, Sport, Transport, Tanken, Urlaub, Geschenke, Bildung, Versicherung,
+Sonstiges; Einnahmen: Gehalt, Nebeneinkünfte, Verkauf, Erstattung, Geschenk, Sonstiges).
+Sie gelten an drei Stellen:
+
+- **Magic Input**: Gemini bekommt die Kategorien als feste Enum im `responseSchema` und
+  wählt daraus aus (Pro-Prompt-Anleitung je nach expense/income/transfer).
+- **Manuelle Eingabe & Bearbeiten**: Kategorie-Felder sind Textfelder mit
+  `datalist`-Dropdown (`#standard-categories`) – Vorschläge auswählen oder frei eintippen.
+- **Budgets**: das Anlage-Dropdown bietet alle Ausgaben-Kategorien.
+
+## Budgets
+
+Im Dashboard (Sektion „🎯 Budgets") lassen sich monatliche Budgets pro Kategorie setzen.
+Ein Budget mit `month = 'default'` gilt für jeden Monat (Hinweis „gilt für jeden Monat“),
+ein Budget mit konkretem `YYYY-MM` überschreibt es nur für diesen Monat. Angezeigt wird
+Verbrauch mit Fortschrittsbalken (grün < 80 %, amber < 100 %, rot darüber); leeres Feld
+plus ✓ löscht das Budget. Gezählt werden alle Ausgaben (`type = 'expense'`) des Haushalts
+im angewählten Monat.
+
+## Statistik
+
+`/stats` (Monat navigierbar, gleicher `?month=`-Parameter wie das Dashboard): 
+Ausgaben-Donut nach Kategorie, 12-Monats-Verlauf (Einnahmen/Ausgaben als Balken-SVG),
+Top-10-Ausgaben und Monatsbilanz – alles ohne externe Chart-Library als Inline-SVG.
 
 ## Wiederkehrende Zahlungen
 

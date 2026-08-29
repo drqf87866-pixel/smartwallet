@@ -110,6 +110,9 @@ recurring.put('/api/recurring/:id', async (c) => {
     return c.json({ error: checked.error }, 400);
   }
   const r = checked.input;
+  // end_date nur überschreiben, wenn im Body vorhanden – sonst bestehendes Ende behalten
+  // (die UI pflegt kein Enddatum mehr und sendet den Key daher nicht)
+  const endDate = 'end_date' in raw ? r.end_date : existing.end_date;
   await c.env.DB
     .prepare(
       `UPDATE recurring_rules SET amount = ?1, type = ?2, category = ?3, description = ?4,
@@ -119,7 +122,7 @@ recurring.put('/api/recurring/:id', async (c) => {
     )
     .bind(
       r.amount, r.type, r.category, r.description, r.scope, r.paid_from,
-      r.frequency, r.day, r.month, r.start_date, r.end_date, id,
+      r.frequency, r.day, r.month, r.start_date, endDate, id,
     )
     .run();
 

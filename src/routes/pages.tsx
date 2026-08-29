@@ -6,7 +6,8 @@ import type { Env } from '../types';
 import { COOKIE_NAME } from '../lib/auth';
 import { LoginView } from '../views/login';
 import { RegisterView } from '../views/register';
-import { DashboardView, SummaryCards, TxList, RecurringSection, type DashboardTx, type DebtRow } from '../views/dashboard';
+import { DashboardView, SummaryCards, TxList, RecurringSection, BudgetsSection, type DashboardTx, type DebtRow, type BudgetRow } from '../views/dashboard';
+import { StatsView } from '../views/stats';
 import { SettingsView } from '../views/settings';
 import { materializeRecurring, nextDueDate, todayBerlin, type RecurringRule } from '../lib/recurring';
 
@@ -44,7 +45,7 @@ function monthParam(value: string | undefined): string {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-function shiftMonth(month: string, delta: 1 | -1): string {
+function shiftMonth(month: string, delta: number): string {
   const [year, m] = month.split('-').map(Number);
   const shifted = new Date(Date.UTC(year, m - 1 + delta, 1));
   return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`;
@@ -109,6 +110,15 @@ pages.get('/dashboard', async (c) => {
   return c.html(<DashboardView {...data} />);
 });
 
+/** Statistik-Seite: Kategorien, 12-Monats-Verlauf, Top-Ausgaben. */
+pages.get('/stats', async (c) => {
+  const auth = await getAuth(c);
+  if (!auth) return c.redirect('/login');
+
+  const data = await loadStatsData(c, auth, monthParam(c.req.query('month')));
+  return c.html(<StatsView {...data} />);
+});
+
 /**
  * HTML-Fragmente für Partial Updates: der Client tauscht nach Mutationen nur
  * diese Bereiche aus statt die ganze Seite neu zu laden. Für fetch-Aufrufe
@@ -140,6 +150,14 @@ pages.get('/dashboard/fragments/recurring', async (c) => {
   if (auth instanceof Response) return auth;
   const data = await loadRecurringData(c, auth.hid);
   return c.html(<RecurringSection {...data} />);
+});
+
+/** Fragment der Sektion „Budgets“. */
+pages.get('/dashboard/fragments/budgets', async (c) => {
+  const auth = await requireDashboardAuth(c);
+  if (auth instanceof Response) return auth;
+  const data = await loadBudgetsData(c, auth.hid, monthParam(c.req.query('month')));
+  return c.html(<BudgetsSection {...data} />);
 });
 
 /** Auth für Fragment- und Dashboard-Routen: bei Fehlen 401 JSON (Fetch) oder Redirect. */
@@ -372,6 +390,141 @@ async function loadRecurringData(c: Context<Env>, hid: number) {
   return { rules: rulesWithNextDue, today };
 }
 
+/** Ausgaben je Kategorie für einen Monat (YYYY-MM) – von Budgets und Stats genutzt. */
+async function loadCategorySpent(
+  db: Env['Bindings']['DB'],
+  hid: number,
+  month: string,
+): Promise<{ category: string; spent: number }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT t.category AS category, COALESCE(SUM(t.amount), 0) AS spent
+       FROM transactions t
+       JOIN users u ON u.id = t.user_id
+       WHERE u.household_id = ?1 AND t.type = 'expense' AND t.date LIKE ?2
+       GROUP BY t.category`,
+    )
+    .bind(hid, `${month}%`)
+    .all<{ category: string; spent: number }>();
+  return results;
+}
+
+/** Daten für die Sektion „Budgets“: Budgets (default/monatsspezifisch) + Verbrauch. */
+async function loadBudgetsData(c: Context<Env>, hid: number, month: string): Promise<{ month: string; rows: BudgetRow[] }> {
+  await materializeRecurring(c.env.DB, hid);
+  const [budgetsResult, spentRows] = await Promise.all([
+    c.env.DB
+      .prepare("SELECT month, category, amount FROM budgets WHERE household_id = ?1 AND (month = 'default' OR month = ?2)")
+      .bind(hid, month)
+      .all<{ month: string; category: string; amount: number }>(),
+    loadCategorySpent(c.env.DB, hid, month),
+  ]);
+  const budgetRows = budgetsResult.results;
+
+  // Effektives Budget je Kategorie: monatsspezifisch überschreibt 'default'
+  const budgetsByCategory = new Map<string, { amount: number; origin: string }>();
+  for (const row of budgetRows) {
+    if (row.month === 'default') {
+      budgetsByCategory.set(row.category, { amount: row.amount, origin: 'default' });
+    }
+  }
+  for (const row of budgetRows) {
+    if (row.month === month) {
+      budgetsByCategory.set(row.category, { amount: row.amount, origin: month });
+    }
+  }
+
+  const spentByCategory = new Map(spentRows.map((row) => [row.category, row.spent]));
+  const categories = new Set<string>([...budgetsByCategory.keys(), ...spentByCategory.keys()]);
+  const rows: BudgetRow[] = [...categories].map((category) => {
+    const budget = budgetsByCategory.get(category);
+    return {
+      category,
+      budget: budget?.amount ?? null,
+      origin: budget?.origin ?? 'default',
+      spent: Math.round((spentByCategory.get(category) ?? 0) * 100) / 100,
+    };
+  });
+  rows.sort((a, b) => b.spent - a.spent || a.category.localeCompare(b.category));
+
+  return { month, rows };
+}
+
+/** Daten für die Statistik-Seite. */
+async function loadStatsData(c: Context<Env>, auth: AuthInfo, month: string) {
+  const hid = auth.hid;
+  const prefix = `${month}%`;
+  // 12-Monats-Fenster: vom ersten Tag des Monats vor 11 Monaten bis Monatsende
+  const windowStart = `${shiftMonth(month, -11)}-01`;
+
+  await materializeRecurring(c.env.DB, hid);
+
+  const [household, categoryResult, historyResult, topResult] = await Promise.all([
+    c.env.DB
+      .prepare('SELECT name FROM households WHERE id = ?1')
+      .bind(hid)
+      .first<{ name: string }>(),
+    loadCategorySpent(c.env.DB, hid, month),
+    c.env.DB
+      .prepare(
+        `SELECT substr(t.date, 1, 7) AS ym,
+                COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount END), 0) AS income,
+                COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount END), 0) AS expense
+         FROM transactions t
+         JOIN users u ON u.id = t.user_id
+         WHERE u.household_id = ?1 AND t.type IN ('income', 'expense') AND t.date >= ?2
+         GROUP BY ym`,
+      )
+      .bind(hid, `${windowStart}T00:00:00.000Z`)
+      .all<{ ym: string; income: number; expense: number }>(),
+    c.env.DB
+      .prepare(
+        `SELECT t.description, t.category, t.amount, t.date, u.name AS created_by
+         FROM transactions t
+         JOIN users u ON u.id = t.user_id
+         WHERE u.household_id = ?1 AND t.type = 'expense' AND t.date LIKE ?2
+         ORDER BY t.amount DESC
+         LIMIT 10`,
+      )
+      .bind(hid, prefix)
+      .all<{ description: string; category: string; amount: number; date: string; created_by: string }>(),
+  ]);
+  const categoryRows = categoryResult;
+  const historyRows = historyResult.results;
+  const topRows = topResult.results;
+
+  // Lücken im 12-Monats-Fenster mit 0 auffüllen (für die Balken-X-Achse)
+  const historyByMonth = new Map(historyRows.map((row) => [row.ym, row]));
+  const history: { ym: string; income: number; expense: number }[] = [];
+  for (let i = -11; i <= 0; i++) {
+    const ym = shiftMonth(month, i);
+    const row = historyByMonth.get(ym);
+    history.push({
+      ym,
+      income: row ? Math.round(row.income * 100) / 100 : 0,
+      expense: row ? Math.round(row.expense * 100) / 100 : 0,
+    });
+  }
+
+  const categories = categoryRows
+    .map((row) => ({ category: row.category, spent: Math.round(row.spent * 100) / 100 }))
+    .sort((a, b) => b.spent - a.spent);
+  const categoryTotal = Math.round(categories.reduce((sum, row) => sum + row.spent, 0) * 100) / 100;
+
+  return {
+    userName: auth.name,
+    householdName: household?.name ?? 'Haushalt',
+    month,
+    monthLabel: monthLabelFor(month),
+    prevMonth: shiftMonth(month, -1),
+    nextMonth: shiftMonth(month, 1),
+    categories,
+    categoryTotal,
+    history,
+    topExpenses: topRows,
+  };
+}
+
 function monthLabelFor(month: string): string {
   return new Intl.DateTimeFormat('de-DE', {
     month: 'long',
@@ -382,12 +535,13 @@ function monthLabelFor(month: string): string {
 
 /** Kompletter Dashboard-Datensatz für die ganzseitige Ansicht. */
 async function loadDashboardData(c: Context<Env>, auth: AuthInfo, month: string) {
-  const [summary, list, recurring] = await Promise.all([
+  const [summary, list, recurring, budgets] = await Promise.all([
     loadSummaryData(c, auth, month),
     loadListData(c, auth, month),
     loadRecurringData(c, auth.hid),
+    loadBudgetsData(c, auth.hid, month),
   ]);
-  return { ...summary, ...list, ...recurring, month };
+  return { ...summary, ...list, ...recurring, budgetRows: budgets.rows, month };
 }
 
 export default pages;
