@@ -86,6 +86,32 @@ const amountSign = (t: DashboardTx) =>
   t.type === 'income' ? '+' : t.type === 'expense' ? '−' : '↗ ';
 const isEditable = (t: DashboardTx) => t.type !== 'settlement' && t.category !== 'Beitrag';
 
+/** Schulden-Zeilen inkl. begleichen-Button – von Mobile- und Desktop-Ansicht geteilt. */
+const DebtRows: FC<{ debts: DebtRow[] }> = ({ debts }) => (
+  <>
+    {debts.map((d) => (
+      <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-2">
+        <span class={d.kind === 'owed-to-you' ? 'text-emerald-700' : 'text-amber-700'}>
+          {d.kind === 'owed-to-you' ? `${d.other} → du` : `du → ${d.other}`}
+        </span>
+        <span class="flex items-center gap-1.5">
+          <span class="font-semibold">{fmt(d.amount)}</span>
+          <button
+            type="button"
+            data-quick-settle
+            data-amount={d.amount.toFixed(2)}
+            data-from={d.kind === 'you-owe' ? 'me' : d.otherId}
+            data-to={d.kind === 'you-owe' ? d.otherId : 'me'}
+            class="min-h-[28px] rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 hover:bg-indigo-100"
+          >
+            begleichen
+          </button>
+        </span>
+      </li>
+    ))}
+  </>
+);
+
 /* ------------------------------------------------------------------ */
 /* Fragmente: SummaryCards + TxList                                    */
 /* ------------------------------------------------------------------ */
@@ -99,9 +125,70 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
   debts,
   myContribution,
   contributionBooked,
-}) => (
-  <>
-    <section class="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+}) => {
+  return (
+    <>
+      {/* Mobile: eine kompakte Karte, 3 Werte nebeneinander */}
+      <section class="mb-4 md:hidden">
+        <article class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <div class="grid grid-cols-3 divide-x divide-slate-200 text-center">
+            <div class="px-1">
+              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-400">Privat</p>
+              <p
+                class={
+                  'mt-1 text-lg font-bold tabular-nums ' +
+                  (privateBalance >= 0 ? 'text-emerald-600' : 'text-red-600')
+                }
+              >
+                {fmt(privateBalance)}
+              </p>
+            </div>
+            <div class="px-1">
+              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-400">Gemeinsam</p>
+              <p
+                class={
+                  'mt-1 text-lg font-bold tabular-nums ' +
+                  (jointPot.saldo >= 0 ? 'text-indigo-600' : 'text-red-600')
+                }
+              >
+                {fmt(jointPot.saldo)}
+              </p>
+            </div>
+            <div class="px-1">
+              <p class="text-[11px] font-medium uppercase tracking-wide text-slate-400">Ausgaben</p>
+              <p class="mt-1 text-lg font-bold tabular-nums text-indigo-600">{fmt(sharedMonth.total)}</p>
+            </div>
+          </div>
+          <p class="mt-2 text-center text-[11px] leading-tight text-slate-400">
+            Start {fmt(jointPot.start)} · eingezahlt {fmt(jointPot.transfers)} ·{' '}
+            {fmt(sharedMonth.advanced)} vorgestreckt · {monthLabel}
+          </p>
+
+          {members.length < 2 ? (
+            <p class="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-500">
+              Du bist solo im Haushalt. Einladungscode: oben rechts auf dein Profilbild → Einstellungen.
+            </p>
+          ) : debts.length === 0 ? (
+            <p class="mt-3 text-center text-xs font-medium text-emerald-600">Alles ausgeglichen 🎉</p>
+          ) : (
+            <details class="group mt-3 border-t border-slate-100 pt-1">
+              <summary class="flex min-h-[44px] cursor-pointer select-none list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                <span class="text-xs font-medium text-slate-500">Offene Positionen ({debts.length})</span>
+                <span class="text-slate-400 transition group-open:rotate-180">▾</span>
+              </summary>
+              <ul class="space-y-1.5 pb-1 text-xs">
+                <DebtRows debts={debts} />
+              </ul>
+              <p class="mt-1 text-[10px] text-slate-400">
+                laufend: private Vorschüsse 1/{members.length} umgelegt − Ausgleiche
+              </p>
+            </details>
+          )}
+        </article>
+      </section>
+
+      {/* Desktop: Kachel-Grid (unverändert) */}
+      <section class="mb-8 hidden gap-4 md:grid md:grid-cols-2 xl:grid-cols-4">
       <article class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 class="text-sm font-medium text-slate-500">Mein privater Saldo</h2>
         <p class={'mt-2 text-2xl font-bold sm:text-3xl ' + (privateBalance >= 0 ? 'text-emerald-600' : 'text-red-600')}>
@@ -142,26 +229,7 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
           </>
         ) : (
           <ul class="mt-2 max-h-40 space-y-1.5 overflow-y-auto text-xs">
-            {debts.map((d) => (
-              <li class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-2">
-                <span class={d.kind === 'owed-to-you' ? 'text-emerald-700' : 'text-amber-700'}>
-                  {d.kind === 'owed-to-you' ? `${d.other} → du` : `du → ${d.other}`}
-                </span>
-                <span class="flex items-center gap-1.5">
-                  <span class="font-semibold">{fmt(d.amount)}</span>
-                  <button
-                    type="button"
-                    data-quick-settle
-                    data-amount={d.amount.toFixed(2)}
-                    data-from={d.kind === 'you-owe' ? 'me' : d.otherId}
-                    data-to={d.kind === 'you-owe' ? d.otherId : 'me'}
-                    class="min-h-[28px] rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-medium text-indigo-600 hover:bg-indigo-100"
-                  >
-                    begleichen
-                  </button>
-                </span>
-              </li>
-            ))}
+            <DebtRows debts={debts} />
           </ul>
         )}
         <p class="mt-2 text-[10px] text-slate-400">
@@ -188,8 +256,9 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
         🤝 Ausgleichszahlung erfassen
       </button>
     </section>
-  </>
-);
+    </>
+  );
+};
 
 const TxRow: FC<{ t: DashboardTx }> = ({ t }) => {
   const badge = accountBadge(t);
@@ -971,7 +1040,7 @@ export const DashboardView: FC<DashboardProps> = ({
         class="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur md:hidden"
         style="padding-bottom: env(safe-area-inset-bottom)"
       >
-        <div class="grid grid-cols-3">
+        <div class="grid grid-cols-2">
           <a href="/dashboard" class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-indigo-600">
             <span class="text-lg leading-none">🏠</span>
             Dashboard
@@ -984,10 +1053,6 @@ export const DashboardView: FC<DashboardProps> = ({
             <span class="text-lg leading-none">✨</span>
             Hinzufügen
           </button>
-          <a href="/settings" class="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium text-slate-600">
-            <span class="text-lg leading-none">⚙️</span>
-            Einstellungen
-          </a>
         </div>
       </nav>
 
