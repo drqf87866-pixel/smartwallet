@@ -7,6 +7,7 @@ const recurring = new Hono<Env>();
 
 recurring.use('/api/recurring', requireAuth);
 recurring.use('/api/recurring/:id', requireAuth);
+recurring.use('/api/recurring/:id/book', requireAuth);
 
 /** Lädt eine Regel, sofern sie zum Haushalt des Aufrufers gehört. */
 async function loadHouseholdRule(
@@ -77,6 +78,54 @@ recurring.post('/api/recurring', async (c) => {
   await materializeRecurring(c.env.DB, c.get('householdId'));
 
   return c.json({ rule: { id: result.id, ...r, active: 1, next_due: nextDueDate({ ...r, id: result.id, household_id: c.get('householdId'), user_id: c.get('userId'), active: 1 }, todayBerlin()) } }, 201);
+});
+
+/**
+ * Sofortbuchen: die nächste offene Fälligkeit einer Regel wird sofort als
+ * normale Transaktion gebucht (Datum = jetzt) statt aufs Fälligkeitsdatum zu
+ * warten. Die Occurrence landet in recurring_skips, damit die Materialization
+ * sie am Fälligkeitstag nicht erneut anlegt.
+ */
+recurring.post('/api/recurring/:id/book', async (c) => {
+  const id = Number(c.req.param('id'));
+  const rule = await loadHouseholdRule(c.env.DB, id, c.get('householdId'));
+  if (!rule) {
+    return c.json({ error: 'Regel nicht gefunden' }, 404);
+  }
+  if (!rule.active) {
+    return c.json({ error: 'Regel ist pausiert – bitte zuerst aktivieren' }, 400);
+  }
+
+  // Lazy Materialization: stellt sicher, dass alle Fälligkeiten bis heute gebucht sind
+  await materializeRecurring(c.env.DB, c.get('householdId'));
+
+  const today = todayBerlin();
+  const { results: skipRows } = await c.env.DB
+    .prepare('SELECT due_date FROM recurring_skips WHERE recurring_id = ?1')
+    .bind(rule.id)
+    .all<{ due_date: string }>();
+  const target = nextDueDate(rule, today, new Set(skipRows.map((s) => s.due_date)));
+  if (!target) {
+    return c.json({ error: 'Keine offene Fälligkeit – die Regel ist abgeschlossen' }, 400);
+  }
+
+  await c.env.DB.batch([
+    c.env.DB
+      .prepare(
+        `INSERT INTO transactions
+           (user_id, amount, type, category, description, date, scope, paid_from, recurring_id)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)`,
+      )
+      .bind(
+        rule.user_id, rule.amount, rule.type, rule.category, rule.description,
+        new Date().toISOString(), rule.scope, rule.paid_from, rule.id,
+      ),
+    c.env.DB
+      .prepare('INSERT OR IGNORE INTO recurring_skips (recurring_id, due_date) VALUES (?1, ?2)')
+      .bind(rule.id, target),
+  ]);
+
+  return c.json({ ok: true, booked_due_date: target });
 });
 
 recurring.put('/api/recurring/:id', async (c) => {

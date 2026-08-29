@@ -6,7 +6,8 @@ import type { Env } from '../types';
 import { COOKIE_NAME } from '../lib/auth';
 import { LoginView } from '../views/login';
 import { RegisterView } from '../views/register';
-import { DashboardView, SummaryCards, TxList, RecurringSection, BudgetsSection, type DashboardTx, type DebtRow, type BudgetRow } from '../views/dashboard';
+import { DashboardView, SummaryCards, TxList, type DashboardTx, type DebtRow } from '../views/dashboard';
+import { RecurringList, RecurringView } from '../views/recurring';
 import { StatsView } from '../views/stats';
 import { SettingsView } from '../views/settings';
 import { materializeRecurring, nextDueDate, todayBerlin, type RecurringRule } from '../lib/recurring';
@@ -119,6 +120,36 @@ pages.get('/stats', async (c) => {
   return c.html(<StatsView {...data} />);
 });
 
+/** Eigene Seite „Wiederkehrende Zahlungen“: Regeln verwalten. */
+pages.get('/recurring', async (c) => {
+  const auth = await getAuth(c);
+  if (!auth) return c.redirect('/login');
+
+  const [data, household] = await Promise.all([
+    loadRecurringData(c, auth.hid),
+    c.env.DB
+      .prepare('SELECT name FROM households WHERE id = ?1')
+      .bind(auth.hid)
+      .first<{ name: string }>(),
+  ]);
+  return c.html(
+    <RecurringView
+      userName={auth.name}
+      householdName={household?.name ?? 'Haushalt'}
+      rules={data.rules}
+      today={data.today}
+    />,
+  );
+});
+
+/** Fragment der Regel-Liste auf der recurring-Seite. */
+pages.get('/recurring/fragments/list', async (c) => {
+  const auth = await requireDashboardAuth(c);
+  if (auth instanceof Response) return auth;
+  const data = await loadRecurringData(c, auth.hid);
+  return c.html(<RecurringList rules={data.rules} />);
+});
+
 /**
  * HTML-Fragmente für Partial Updates: der Client tauscht nach Mutationen nur
  * diese Bereiche aus statt die ganze Seite neu zu laden. Für fetch-Aufrufe
@@ -142,22 +173,6 @@ pages.get('/dashboard/fragments/list', async (c) => {
   const layout = layoutParam === 'mobile' || layoutParam === 'desktop' ? layoutParam : undefined;
   const data = await loadListData(c, auth, monthParam(c.req.query('month')));
   return c.html(<TxList {...data} layout={layout} />);
-});
-
-/** Fragment der Sektion „Wiederkehrende Zahlungen“. */
-pages.get('/dashboard/fragments/recurring', async (c) => {
-  const auth = await requireDashboardAuth(c);
-  if (auth instanceof Response) return auth;
-  const data = await loadRecurringData(c, auth.hid);
-  return c.html(<RecurringSection {...data} />);
-});
-
-/** Fragment der Sektion „Budgets“. */
-pages.get('/dashboard/fragments/budgets', async (c) => {
-  const auth = await requireDashboardAuth(c);
-  if (auth instanceof Response) return auth;
-  const data = await loadBudgetsData(c, auth.hid, monthParam(c.req.query('month')));
-  return c.html(<BudgetsSection {...data} />);
 });
 
 /** Auth für Fragment- und Dashboard-Routen: bei Fehlen 401 JSON (Fetch) oder Redirect. */
@@ -409,47 +424,6 @@ async function loadCategorySpent(
   return results;
 }
 
-/** Daten für die Sektion „Budgets“: Budgets (default/monatsspezifisch) + Verbrauch. */
-async function loadBudgetsData(c: Context<Env>, hid: number, month: string): Promise<{ month: string; rows: BudgetRow[] }> {
-  await materializeRecurring(c.env.DB, hid);
-  const [budgetsResult, spentRows] = await Promise.all([
-    c.env.DB
-      .prepare("SELECT month, category, amount FROM budgets WHERE household_id = ?1 AND (month = 'default' OR month = ?2)")
-      .bind(hid, month)
-      .all<{ month: string; category: string; amount: number }>(),
-    loadCategorySpent(c.env.DB, hid, month),
-  ]);
-  const budgetRows = budgetsResult.results;
-
-  // Effektives Budget je Kategorie: monatsspezifisch überschreibt 'default'
-  const budgetsByCategory = new Map<string, { amount: number; origin: string }>();
-  for (const row of budgetRows) {
-    if (row.month === 'default') {
-      budgetsByCategory.set(row.category, { amount: row.amount, origin: 'default' });
-    }
-  }
-  for (const row of budgetRows) {
-    if (row.month === month) {
-      budgetsByCategory.set(row.category, { amount: row.amount, origin: month });
-    }
-  }
-
-  const spentByCategory = new Map(spentRows.map((row) => [row.category, row.spent]));
-  const categories = new Set<string>([...budgetsByCategory.keys(), ...spentByCategory.keys()]);
-  const rows: BudgetRow[] = [...categories].map((category) => {
-    const budget = budgetsByCategory.get(category);
-    return {
-      category,
-      budget: budget?.amount ?? null,
-      origin: budget?.origin ?? 'default',
-      spent: Math.round((spentByCategory.get(category) ?? 0) * 100) / 100,
-    };
-  });
-  rows.sort((a, b) => b.spent - a.spent || a.category.localeCompare(b.category));
-
-  return { month, rows };
-}
-
 /** Daten für die Statistik-Seite. */
 async function loadStatsData(c: Context<Env>, auth: AuthInfo, month: string) {
   const hid = auth.hid;
@@ -535,13 +509,15 @@ function monthLabelFor(month: string): string {
 
 /** Kompletter Dashboard-Datensatz für die ganzseitige Ansicht. */
 async function loadDashboardData(c: Context<Env>, auth: AuthInfo, month: string) {
-  const [summary, list, recurring, budgets] = await Promise.all([
+  const [summary, list, recurringCount] = await Promise.all([
     loadSummaryData(c, auth, month),
     loadListData(c, auth, month),
-    loadRecurringData(c, auth.hid),
-    loadBudgetsData(c, auth.hid, month),
+    c.env.DB
+      .prepare('SELECT COUNT(*) AS n FROM recurring_rules WHERE household_id = ?1')
+      .bind(auth.hid)
+      .first<{ n: number }>(),
   ]);
-  return { ...summary, ...list, ...recurring, budgetRows: budgets.rows, month };
+  return { ...summary, ...list, recurringCount: recurringCount?.n ?? 0, month };
 }
 
 export default pages;

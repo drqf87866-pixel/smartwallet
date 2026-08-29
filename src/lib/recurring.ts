@@ -65,15 +65,13 @@ const asAmount = (value: unknown): number | null => {
   return null;
 };
 
-const asInt = (value: unknown): number | null => {
-  const n = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
-  return Number.isInteger(n) ? n : null;
-};
-
 /**
  * Validiert Rohdaten zu einer wiederkehrenden Zahlung.
  * Kontoregeln wie validateTransactionInput: Einnahmen und persönliche Posten
  * laufen immer übers Privatkonto.
+ *
+ * Der Rhythmus (day/weekday, month) wird aus start_date (= „Fällig am“)
+ * abgeleitet – ein body.day/body.month wird ignoriert.
  */
 export function validateRecurringInput(
   raw: unknown,
@@ -106,32 +104,26 @@ export function validateRecurringInput(
     return { error: 'frequency muss "weekly", "monthly" oder "yearly" sein' };
   }
 
-  const day = asInt(body.day);
-  if (day === null) return { error: 'day muss eine ganze Zahl sein' };
-  if (frequency === 'weekly' && (day < 1 || day > 7)) {
-    return { error: 'day muss bei weekly ein Wochentag 1–7 sein (Montag = 1)' };
-  }
-  if (frequency !== 'weekly' && (day < 1 || day > 31)) {
-    return { error: 'day muss zwischen 1 und 31 liegen' };
-  }
-
-  let month: number | null = null;
-  if (frequency === 'yearly') {
-    month = asInt(body.month);
-    if (month === null || month < 1 || month > 12) {
-      return { error: 'month muss bei yearly zwischen 1 und 12 liegen' };
-    }
-  }
-
   if (!isDateStr(body.start_date)) {
     return { error: 'start_date muss ein Datum im Format YYYY-MM-DD sein' };
   }
+  const start_date = String(body.start_date);
+
+  // Rhythmus aus dem Fälligkeitsdatum ableiten
+  const day = frequency === 'weekly'
+    ? (new Date(start_date + OCCURRENCE_TIME).getUTCDay() + 6) % 7 + 1 // Mo = 1 … So = 7
+    : Number(start_date.slice(8, 10));
+  let month: number | null = null;
+  if (frequency === 'yearly') {
+    month = Number(start_date.slice(5, 7));
+  }
+
   let end_date: string | null = null;
   if (body.end_date !== undefined && body.end_date !== null && body.end_date !== '') {
     if (!isDateStr(body.end_date)) {
       return { error: 'end_date muss ein Datum im Format YYYY-MM-DD sein' };
     }
-    if (String(body.end_date) < String(body.start_date)) {
+    if (String(body.end_date) < start_date) {
       return { error: 'end_date darf nicht vor start_date liegen' };
     }
     end_date = String(body.end_date);
@@ -156,7 +148,7 @@ export function validateRecurringInput(
       frequency,
       day,
       month,
-      start_date: String(body.start_date),
+      start_date,
       end_date,
       category,
       description,
