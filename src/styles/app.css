@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Gemeinsame Unterkante für Sheets/Overlays: Clearing der Home-Indikator-Fläche.
+   Bewusst außerhalb der Tailwind-Layer definiert, damit die Regel gegen p-5
+   (Utilities) gewinnt. */
+.safe-bottom {
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+}
