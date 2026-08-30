@@ -173,7 +173,11 @@ function shiftMonthPrefix(prefix: string, delta: number): string {
  * Alle Fälligkeitsdaten einer Regel im geschlossenen Intervall [fromISO, toISO]
  * (jeweils YYYY-MM-DD, lexikographischer Vergleich).
  */
-export function occurrenceDates(rule: RecurringRule, fromISO: string, toISO: string): string[] {
+export function occurrenceDates(
+  rule: Pick<RecurringRule, 'frequency' | 'day' | 'month' | 'start_date' | 'end_date'>,
+  fromISO: string,
+  toISO: string,
+): string[] {
   const dates: string[] = [];
   const lower = rule.start_date > fromISO ? rule.start_date : fromISO;
   const upper = toISO;
@@ -234,6 +238,36 @@ export function frequencyLabel(rule: Pick<RecurringRule, 'frequency' | 'day' | '
   if (rule.frequency === 'monthly') return `monatlich am ${rule.day}.`;
   const monthName = MONTH_NAMES[(rule.month ?? 1) - 1];
   return `jährlich am ${rule.day}. ${monthName}`;
+}
+
+type RecurringJoinedRow = {
+  recurring_id: number | null;
+  frequency?: unknown;
+  day?: unknown;
+  month?: unknown;
+};
+
+/**
+ * Ergänzt `recurring_label` (z. B. „monatlich am 3.") zu einer Transaktions-Row,
+ * die per LEFT JOIN auf recurring_rules frequency/day/month mitgeliefert hat,
+ * und entfernt die Join-Spalten wieder aus dem Payload.
+ */
+export function withRecurringLabel<T extends RecurringJoinedRow>(
+  row: T,
+): Omit<T, 'frequency' | 'day' | 'month'> & { recurring_label: string | null } {
+  const { frequency, day, month, ...rest } = row;
+  const label =
+    row.recurring_id != null && typeof frequency === 'string' && typeof day === 'number'
+      ? frequencyLabel({
+          frequency: frequency as RecurringFrequency,
+          day,
+          month: typeof month === 'number' ? month : null,
+        })
+      : null;
+  return {
+    ...(rest as Omit<T, 'frequency' | 'day' | 'month'>),
+    recurring_label: label,
+  };
 }
 
 /**

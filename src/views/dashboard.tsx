@@ -15,6 +15,7 @@ export type DashboardTx = {
   scope: TransactionScope;
   paid_from: TransactionAccount;
   recurring_id: number | null;
+  recurring_label?: string | null;
 };
 
 export type DebtRow = {
@@ -589,6 +590,24 @@ function openEditModal(tx) {
   syncCategoryOptions('e-', tx.category);
   $('e-description').value = tx.description;
   $('e-date').value = String(tx.date).slice(0, 10);
+
+  // „Als wiederkehrend markieren" nur für unverknüpfte Einnahmen/Ausgaben;
+  // bereits verknüpfte Transaktionen zeigen einen Hinweis zur Dauerhaft-Seite
+  var recWrap = $('e-recurring-wrap');
+  var recHint = $('e-recurring-hint');
+  var canRecur = tx.recurring_id == null && (tx.type === 'income' || tx.type === 'expense');
+  if (recWrap) recWrap.hidden = !canRecur;
+  if (recHint) {
+    recHint.classList.toggle('hidden', !(tx.recurring_id != null && tx.recurring_label));
+    var hintLabel = $('e-recurring-hint-label');
+    if (hintLabel) hintLabel.textContent = tx.recurring_label || '';
+  }
+  if (canRecur) {
+    $('e-recurring').checked = false;
+    $('e-frequency').value = 'monthly';
+    $('e-frequency-wrap').classList.add('hidden');
+  }
+
   openSheet('edit-overlay');
   setTimeout(function () { $('e-amount').focus(); }, 150);
 }
@@ -611,6 +630,10 @@ document.addEventListener('change', function (e) {
     syncCategoryOptions(prefix, '');
   }
   if (/^m-(type|scope|paid-from)$/.test(e.target.id)) updateManualPreview();
+  if (e.target.id === 'e-recurring') {
+    var freqWrap = $('e-frequency-wrap');
+    if (freqWrap) freqWrap.classList.toggle('hidden', !e.target.checked);
+  }
 });
 
 document.addEventListener('input', function (e) {
@@ -771,6 +794,9 @@ document.addEventListener('submit', async function (e) {
     if (!EDITING_ID) return;
     var amount = validAmount($('e-amount'));
     if (!amount) return;
+    var editId = EDITING_ID;
+    var recWrap = $('e-recurring-wrap');
+    var markRecurring = !!recWrap && !recWrap.hidden && $('e-recurring').checked;
     var body = {
       amount: amount,
       type: $('e-type').value,
@@ -781,12 +807,18 @@ document.addEventListener('submit', async function (e) {
     };
     var date = $('e-date').value;
     if (date) body.date = date + EDITING_TIME;
+    if (markRecurring) body.recurring_frequency = $('e-frequency').value;
     var unbusy = busy(btn);
     try {
-      await postJson('/api/transactions/' + EDITING_ID, body, 'PUT');
+      await postJson('/api/transactions/' + editId, body, 'PUT');
       EDITING_ID = null;
       closeSheet('edit-overlay');
-      showToast('Änderungen gespeichert ✓', 'ok');
+      showToast(
+        markRecurring
+          ? 'Änderungen gespeichert – als wiederkehrend markiert ✓'
+          : 'Änderungen gespeichert ✓',
+        'ok',
+      );
       await afterMutation(refreshDashboard);
     } catch (err) {
       showToast(err.message, 'error');
@@ -1019,6 +1051,37 @@ export const DashboardView: FC<DashboardProps> = ({
                 <span class={LABEL_CLASS}>Datum</span>
                 <input id="e-date" type="date" autocomplete="off" class={INPUT_CLASS} />
               </label>
+              <div id="e-recurring-wrap" class="sm:col-span-3 lg:col-span-4" hidden>
+                <div class="rounded-xl border border-violet-100 bg-violet-50 p-3">
+                  <label class="flex items-center gap-2">
+                    <input id="e-recurring" type="checkbox" class="h-5 w-5 accent-violet-600" />
+                    <span class="text-sm font-medium text-slate-700">Wiederkehrende Zahlung</span>
+                  </label>
+                  <div id="e-frequency-wrap" class="mt-2 hidden">
+                    <label class="block">
+                      <span class={LABEL_CLASS}>Rhythmus</span>
+                      <select id="e-frequency" class={INPUT_CLASS}>
+                        <option value="weekly">Wöchentlich</option>
+                        <option value="monthly" selected>
+                          Monatlich
+                        </option>
+                        <option value="yearly">Jährlich</option>
+                      </select>
+                    </label>
+                    <p class="mt-1 text-xs text-slate-500">
+                      Tag bzw. Wochentag wird aus dem Transaktionsdatum abgeleitet.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <a
+                id="e-recurring-hint"
+                href="/recurring"
+                class="flex hidden items-center gap-1.5 rounded-xl bg-violet-50 px-3 py-2 text-sm font-medium text-violet-600 sm:col-span-3 lg:col-span-4"
+              >
+                <span aria-hidden="true">🔁</span>
+                <span id="e-recurring-hint-label"></span> – Regel auf der Dauerhaft-Seite bearbeiten
+              </a>
               <div class="flex gap-2 sm:col-span-3 lg:col-span-4">
                 <button type="submit" class="btn-primary flex-1">
                   Änderungen speichern

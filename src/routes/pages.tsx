@@ -10,7 +10,7 @@ import { DashboardView, SummaryCards, TxList, type DashboardTx, type DebtRow } f
 import { RecurringList, RecurringView } from '../views/recurring';
 import { StatsView } from '../views/stats';
 import { SettingsView } from '../views/settings';
-import { materializeRecurring, nextDueDate, todayBerlin, type RecurringRule } from '../lib/recurring';
+import { materializeRecurring, nextDueDate, todayBerlin, withRecurringLabel, type RecurringRule } from '../lib/recurring';
 
 const pages = new Hono<Env>();
 
@@ -373,16 +373,19 @@ async function loadListData(c: Context<Env>, auth: AuthInfo, month: string) {
   await materializeRecurring(c.env.DB, hid);
 
   // Historie des Haushalts im gewählten Monat
-  const { results: transactions } = await c.env.DB.prepare(
-    `SELECT t.id, u.name AS created_by, t.amount, t.type, t.category, t.description, t.date, t.scope, t.paid_from, t.recurring_id
+  const { results: txRows } = await c.env.DB.prepare(
+    `SELECT t.id, u.name AS created_by, t.amount, t.type, t.category, t.description, t.date, t.scope, t.paid_from, t.recurring_id,
+            rr.frequency, rr.day, rr.month
      FROM transactions t
      JOIN users u ON u.id = t.user_id
+     LEFT JOIN recurring_rules rr ON rr.id = t.recurring_id
      WHERE u.household_id = ?1 AND t.date LIKE ?2
      ORDER BY t.date DESC, t.id DESC
      LIMIT 100`,
   )
     .bind(hid, prefix)
-    .all<DashboardTx>();
+    .all<DashboardTx & { frequency: string | null; day: number | null; month: number | null }>();
+  const transactions = txRows.map(withRecurringLabel);
 
   return {
     monthLabel: monthLabelFor(month),

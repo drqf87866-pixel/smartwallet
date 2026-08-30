@@ -58,6 +58,7 @@ curl -X POST http://localhost:8787/api/dev/seed
 | `/api/logout`         | POST    | –    | Cookie löschen                                                   |
 | `/api/transactions`   | GET     | JWT  | Historie (JOIN mit Creator-Name), optional `?month=YYYY-MM`      |
 | `/api/transactions`   | POST    | JWT  | Transaktion manuell anlegen (inkl. `paid_from`)                  |
+| `/api/transactions/:id/recurring` | POST | JWT | Transaktion als wiederkehrend markieren (legt Regel an, `{frequency}`) |
 | `/api/magic-entry`    | POST    | JWT  | Freitext → Gemini (`gemini-3.5-flash-lite`) → Transaktion        |
 | `/api/settings`       | GET/PUT | PUT: JWT | Startstand & Fixbetrag des Gemeinschaftskontos              |
 | `/api/contribution`   | POST    | JWT  | Monatsbeitrag aus Fixbetrag buchen (1×/Monat, sonst 409)         |
