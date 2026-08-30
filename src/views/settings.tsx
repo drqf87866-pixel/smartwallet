@@ -3,13 +3,16 @@ import { Layout } from './layout';
 import { BottomNav, INPUT_CLASS } from './shared';
 import { fmt } from '../lib/format';
 
-export type MemberInfo = { id: number; name: string; monthly_contribution: number };
+export type MemberInfo = { id: number; name: string; monthly_contribution: number; isAdmin: boolean };
 
 type SettingsProps = {
   userName: string;
   userEmail: string;
   householdName: string;
+  /** Interner Join-Token – wird unsichtbar als data-Attribut transportiert, nie angezeigt. */
   inviteCode: string;
+  /** Aktueller Nutzer ist der Haushaltsersteller (darf Link rotieren & Mitglieder entfernen). */
+  isAdmin: boolean;
   members: MemberInfo[];
   myContribution: number;
   startBalance: number;
@@ -24,11 +27,40 @@ document.getElementById('logout-btn').addEventListener('click', async function (
 });
 
 document.getElementById('copy-invite').addEventListener('click', function () {
-  var code = document.getElementById('invite-code').textContent.trim();
-  navigator.clipboard.writeText(code).then(function () {
-    showToast('Einladungscode kopiert: ' + code, 'ok');
+  var code = (document.getElementById('household-card').dataset.inviteCode || '').trim();
+  var link = window.location.origin + '/register?code=' + code;
+  navigator.clipboard.writeText(link).then(function () {
+    showToast('Einladungslink kopiert', 'ok');
   }, function () {
-    showToast('Code: ' + code, 'info');
+    showToast(link, 'info');
+  });
+});
+
+var rotateBtn = document.getElementById('rotate-invite');
+if (rotateBtn) {
+  rotateBtn.addEventListener('click', async function () {
+    if (!window.confirm('Neuen Einladungslink generieren? Der bisherige Link wird dann ungültig.')) return;
+    try {
+      await postJson('/api/household/invite', {}, 'PUT');
+      showToast('Einladungslink neu generiert – der alte Link ist ungültig', 'ok');
+      window.location.reload();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  });
+}
+
+document.querySelectorAll('.remove-member').forEach(function (btn) {
+  btn.addEventListener('click', async function () {
+    var name = btn.dataset.name || 'dieses Mitglied';
+    if (!window.confirm('„' + name + '“ wirklich aus dem Haushalt entfernen? Die Buchungen des Mitglieds werden mitgelöscht.')) return;
+    try {
+      await postJson('/api/household/members/' + btn.dataset.id, {}, 'DELETE');
+      showToast('Mitglied entfernt', 'ok');
+      window.location.reload();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   });
 });
 
@@ -98,6 +130,7 @@ export const SettingsView: FC<SettingsProps> = ({
   userEmail,
   householdName,
   inviteCode,
+  isAdmin,
   members,
   myContribution,
   startBalance,
@@ -123,40 +156,53 @@ export const SettingsView: FC<SettingsProps> = ({
         </button>
       </header>
 
-      <section class="card mb-4">
+      <section class="card mb-4" id="household-card" data-invite-code={inviteCode}>
         <h2 class="text-sm font-medium text-slate-500">Haushalt „{householdName}“</h2>
         <ul class="mt-3 space-y-1.5 text-sm">
           {members.map((m) => (
-            <li class="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
-              <span class="text-slate-700">
+            <li class="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
+              <span class="min-w-0 truncate text-slate-700">
                 {m.name}
                 {m.name === userName ? <span class="text-slate-500"> (du)</span> : null}
+                {m.isAdmin ? (
+                  <span class="ml-2 inline-block rounded-md bg-indigo-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-indigo-600">
+                    Ersteller
+                  </span>
+                ) : null}
               </span>
-              <span class="text-xs tabular-nums text-slate-500">Beitrag: {fmt(m.monthly_contribution)}</span>
+              <span class="flex shrink-0 items-center gap-2">
+                <span class="text-xs tabular-nums text-slate-500">Beitrag: {fmt(m.monthly_contribution)}</span>
+                {isAdmin && !m.isAdmin ? (
+                  <button
+                    type="button"
+                    class="remove-member flex min-h-[32px] items-center rounded-lg border border-red-200 px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                    data-id={m.id}
+                    data-name={m.name}
+                  >
+                    Entfernen
+                  </button>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>
         <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
-          <span class="text-xs text-slate-500">Einladungscode:</span>
-          <code
-            id="invite-code"
-            class="rounded-lg bg-slate-100 px-3 py-1.5 font-mono text-sm font-bold tracking-widest text-slate-700"
-          >
-            {inviteCode}
-          </code>
           <button
             id="copy-invite"
             type="button"
-            class="flex min-h-[36px] items-center rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-          >
-            Kopieren
-          </button>
-          <a
-            href={'/register?code=' + inviteCode}
             class="flex min-h-[36px] items-center rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
           >
-            Link zum Einladen
-          </a>
+            Einladungslink kopieren
+          </button>
+          {isAdmin ? (
+            <button
+              id="rotate-invite"
+              type="button"
+              class="flex min-h-[36px] items-center rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+            >
+              Neu generieren
+            </button>
+          ) : null}
         </div>
       </section>
 

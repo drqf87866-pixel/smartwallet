@@ -81,9 +81,11 @@ pages.get('/settings', async (c) => {
     .bind(hid)
     .first<{ name: string; invite_code: string }>();
   const { results: members } = await c.env.DB
-    .prepare('SELECT id, name, monthly_contribution FROM users WHERE household_id = ?1 ORDER BY id')
+    .prepare(
+      'SELECT id, name, monthly_contribution, is_admin FROM users WHERE household_id = ?1 ORDER BY id',
+    )
     .bind(hid)
-    .all<{ id: number; name: string; monthly_contribution: number }>();
+    .all<{ id: number; name: string; monthly_contribution: number; is_admin: number }>();
   const { results: settingRows } = await c.env.DB
     .prepare("SELECT value FROM settings WHERE household_id = ?1 AND key = 'joint_start_balance'")
     .bind(hid)
@@ -96,7 +98,13 @@ pages.get('/settings', async (c) => {
       userEmail={auth.email}
       householdName={household?.name ?? 'Haushalt'}
       inviteCode={household?.invite_code ?? ''}
-      members={members}
+      isAdmin={me?.is_admin === 1}
+      members={members.map((m) => ({
+        id: m.id,
+        name: m.name,
+        monthly_contribution: m.monthly_contribution,
+        isAdmin: m.is_admin === 1,
+      }))}
       myContribution={me?.monthly_contribution ?? 0}
       startBalance={toNumber(settingRows[0]?.value)}
     />,

@@ -18,6 +18,7 @@ export type Env = {
     userName: string;
     userEmail: string;
     householdId: number;
+    isAdmin: boolean;
   };
 };
 

@@ -223,7 +223,7 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
           <h2 class="text-sm font-medium text-slate-500">Wer schuldet wem?</h2>
           {!multi ? (
             <p class="mt-2 text-xs text-slate-500">
-              Du bist derzeit solo im Haushalt. Teile den Einladungscode (oben rechts unter deinem Namen → Einstellungen),
+              Du bist derzeit solo im Haushalt. Teile den Einladungslink (oben rechts unter deinem Namen → Einstellungen),
               um die gemeinsame Abrechnung zu starten.
             </p>
           ) : debts.length === 0 ? (
