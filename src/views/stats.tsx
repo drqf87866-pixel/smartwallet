@@ -164,12 +164,9 @@ export const StatsView: FC<StatsProps> = ({
     <Layout title="Statistik">
       <main class="mx-auto max-w-6xl px-4 pb-44 pt-4 sm:px-8 md:pb-8">
         {/* Schlanker Kontext-Kopf (Content-First, kein Brand auf Mobile) */}
-        <header class="mb-4 flex items-center justify-between md:hidden">
-          <div>
-            <h1 class="text-xl font-bold tracking-tight text-slate-900">Statistik</h1>
-            <p class="text-xs text-slate-500">{householdName}</p>
-          </div>
-          <UserChip userName={userName} />
+        <header class="mb-4 md:hidden">
+          <h1 class="text-xl font-bold tracking-tight text-slate-900">Statistik</h1>
+          <p class="text-xs text-slate-500">{householdName}</p>
         </header>
 
         {/* Desktop-Kopf */}

@@ -170,8 +170,8 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
         </article>
 
         {/* Sekundär-Aktionen: unten in der Daumenzone der Karte */}
-        <div class="grid grid-cols-2 gap-3">
-          {myContribution > 0 && !contributionBooked ? (
+        {myContribution > 0 && !contributionBooked ? (
+          <div class="grid grid-cols-2 gap-3">
             <button
               type="button"
               data-action="contribution"
@@ -180,15 +180,15 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
               Beitrag buchen
               <span class="block text-xs font-normal text-emerald-100">{fmt(myContribution)}</span>
             </button>
-          ) : (
             <button type="button" data-action="open-settle" class="min-h-[52px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 shadow-sm transition active:scale-95">
-              Ausgleich
+              Ausgleichen
             </button>
-          )}
-          <button type="button" data-action="open-settle" class="min-h-[52px] rounded-2xl bg-slate-900 px-4 text-sm font-semibold text-white shadow-sm transition active:scale-95">
-            Ausgleichszahlung
+          </div>
+        ) : (
+          <button type="button" data-action="open-settle" class="min-h-[52px] w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 shadow-sm transition active:scale-95">
+            Ausgleichen
           </button>
-        </div>
+        )}
       </section>
 
       {/* Desktop: Kachel-Grid */}
@@ -250,7 +250,7 @@ export const SummaryCards: FC<SummaryCardsProps> = ({
             </button>
           ) : null}
           <button type="button" data-action="open-settle" class="btn-secondary">
-            Ausgleichszahlung erfassen
+            Ausgleichen
           </button>
         </section>
       </section>
@@ -832,13 +832,10 @@ export const DashboardView: FC<DashboardProps> = ({
   return (
     <Layout title="Dashboard">
       <main class="mx-auto max-w-6xl px-4 pb-44 pt-4 sm:px-8 md:pb-8">
-        {/* Schlanker Kontext-Kopf: kein Brand, nur Monat + Profil (Content-First) */}
-        <header class="mb-4 flex items-center justify-between md:hidden">
-          <div>
-            <h1 class="text-xl font-bold tracking-tight text-slate-900">{monthLabel}</h1>
-            <p class="text-xs text-slate-500">SmartWallet · {householdName}</p>
-          </div>
-          <UserChip userName={userName} />
+        {/* Schlanker Kontext-Kopf: kein Brand, nur Monat (Content-First) */}
+        <header class="mb-4 md:hidden">
+          <h1 class="text-xl font-bold tracking-tight text-slate-900">{monthLabel}</h1>
+          <p class="text-xs text-slate-500">SmartWallet · {householdName}</p>
         </header>
 
         {/* Desktop-Kopf: volle Navigation + Begrüßung */}
